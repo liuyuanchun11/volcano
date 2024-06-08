@@ -37,11 +37,13 @@ require (
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kubernetes v1.30.2
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
-	sigs.k8s.io/controller-runtime v0.13.0
+	sigs.k8s.io/controller-runtime v0.15.0
 	sigs.k8s.io/yaml v1.3.0
 	stathat.com/c/consistent v1.0.0
 	volcano.sh/apis v1.10.0-alpha.0
 )
+
+require gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
@@ -123,7 +125,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.25.0 // indirect
+	k8s.io/apiextensions-apiserver v0.27.2 // indirect
 	k8s.io/cloud-provider v0.25.0 // indirect
 	k8s.io/controller-manager v0.30.2 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
