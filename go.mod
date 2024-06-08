@@ -37,11 +37,13 @@ require (
 	k8s.io/klog/v2 v2.110.1
 	k8s.io/kubernetes v1.29.0
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
-	sigs.k8s.io/controller-runtime v0.13.0
+	sigs.k8s.io/controller-runtime v0.15.0
 	sigs.k8s.io/yaml v1.3.0
 	stathat.com/c/consistent v1.0.0
 	volcano.sh/apis v1.9.0
 )
+
+require gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
@@ -106,7 +108,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.21.0 // indirect
+	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
@@ -124,7 +126,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.25.0 // indirect
+	k8s.io/apiextensions-apiserver v0.27.2 // indirect
 	k8s.io/cloud-provider v0.25.0 // indirect
 	k8s.io/controller-manager v0.29.0 // indirect
 	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
