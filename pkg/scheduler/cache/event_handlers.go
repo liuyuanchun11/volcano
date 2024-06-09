@@ -39,6 +39,7 @@ import (
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/utils/cpuset"
 
+	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	nodeinfov1alpha1 "volcano.sh/apis/pkg/apis/nodeinfo/v1alpha1"
 	"volcano.sh/apis/pkg/apis/scheduling"
 	"volcano.sh/apis/pkg/apis/scheduling/scheme"
@@ -687,6 +688,7 @@ func (sc *SchedulerCache) setPodGroup(ss *schedulingapi.PodGroup) error {
 		sc.Jobs[job].Queue = schedulingapi.QueueID(sc.defaultQueue)
 	}
 
+	sc.addJobInfoToJobGroup(sc.Jobs[job])
 	metrics.UpdateE2eSchedulingStartTimeByJob(sc.Jobs[job].Name, string(sc.Jobs[job].Queue), sc.Jobs[job].Namespace,
 		sc.Jobs[job].CreationTimestamp.Time)
 	return nil
@@ -704,6 +706,7 @@ func (sc *SchedulerCache) deletePodGroup(id schedulingapi.JobID) error {
 		return fmt.Errorf("can not found job %v", id)
 	}
 
+	sc.delJobInfoFromJobGroup(job)
 	// Unset SchedulingSpec
 	job.UnsetPodGroup()
 
@@ -1234,5 +1237,186 @@ func (sc *SchedulerCache) setCSIResourceOnNode(csiNode *sv1.CSINode, node *v1.No
 	for resourceName, quantity := range csiResources {
 		node.Status.Allocatable[resourceName] = quantity
 		node.Status.Capacity[resourceName] = quantity
+	}
+}
+
+func (sc *SchedulerCache) AddHyperJobV1alpha1(obj interface{}) {
+	hyperJob, ok := obj.(*vcbatch.HyperJob)
+	if !ok {
+		klog.Errorf("Cannot convert to hyperJob: %v", obj)
+		return
+	}
+
+	klog.V(3).Infof("Receive hyperJob %s/%s add event", hyperJob.Namespace, hyperJob.Name)
+	if err := sc.addOrUpdateHyperJob(hyperJob); err != nil {
+		klog.Errorf("Failed to add hyperJob %s into cache: %v", hyperJob.Name, err)
+		return
+	}
+}
+
+func (sc *SchedulerCache) UpdateHyperJobV1alpha1(oldObj, newObj interface{}) {
+	oldHyperJob, ok := oldObj.(*vcbatch.HyperJob)
+	if !ok {
+		klog.Errorf("Cannot convert oldObj to hyperJob: %v", oldObj)
+		return
+	}
+	newHyperJob, ok := newObj.(*vcbatch.HyperJob)
+	if !ok {
+		klog.Errorf("Cannot convert newObj to hyperJob: %v", newObj)
+		return
+	}
+
+	if oldHyperJob.ResourceVersion == newHyperJob.ResourceVersion {
+		return
+	}
+
+	klog.V(3).Infof("Receive hyperJob %s/%s update event", newHyperJob.Namespace, newHyperJob.Name)
+	if err := sc.addOrUpdateHyperJob(newHyperJob); err != nil {
+		klog.Errorf("Failed to update hyperJob %s into cache: %v", newHyperJob.Name, err)
+		return
+	}
+}
+
+func (sc *SchedulerCache) DeleteHyperJobV1alpha1(obj interface{}) {
+	hyperJob, ok := obj.(*vcbatch.HyperJob)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			klog.Errorf("Couldn't get object from tombstone %#v.", obj)
+			return
+		}
+		hyperJob, ok = tombstone.Obj.(*vcbatch.HyperJob)
+		if !ok {
+			klog.Errorf("Tombstone contained object that is not a hyperJob: %#v.", obj)
+			return
+		}
+	}
+
+	klog.V(3).Infof("Receive hyperJob %s/%s delete event", hyperJob.Namespace, hyperJob.Name)
+	if err := sc.deleteHyperJob(hyperJob); err != nil {
+		klog.Errorf("Failed to delete hyperJob %s from cache: %v", hyperJob.Name, err)
+		return
+	}
+}
+
+func (sc *SchedulerCache) addOrUpdateHyperJob(hyperJob *vcbatch.HyperJob) error {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	jobGroupID := schedulingapi.GetJobGroupID(hyperJob.Namespace, hyperJob.Name, string(hyperJob.UID))
+	jobGroupInfo, found := sc.JobGroups[jobGroupID]
+	if !found {
+		jobGroupInfo = schedulingapi.NewJobGroupInfo(jobGroupID)
+		sc.JobGroups[jobGroupID] = jobGroupInfo
+		klog.V(3).Infof("Add new jobGroupInfo %s to cache", jobGroupID)
+	}
+
+	var totalJobReplicas int32
+	for _, replicatedJob := range hyperJob.Spec.ReplicatedJobs {
+		totalJobReplicas += replicatedJob.Replicas
+	}
+	jobGroup := schedulingapi.JobGroupInfo{
+		Name:         hyperJob.Name,
+		Namespace:    hyperJob.Namespace,
+		Replicas:     totalJobReplicas,
+		MinAvailable: hyperJob.Spec.MinAvailable,
+		Owner: schedulingapi.JobGroupOwner{
+			Type:     schedulingapi.OwnerTypeHyperJob,
+			HyperJob: hyperJob,
+		},
+		CreationTimestamp: hyperJob.GetCreationTimestamp(),
+	}
+	jobGroupInfo.SetJobGroup(&jobGroup)
+
+	return nil
+}
+
+func (sc *SchedulerCache) deleteHyperJob(hyperJob *vcbatch.HyperJob) error {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	jobGroupID := schedulingapi.GetJobGroupID(hyperJob.Namespace, hyperJob.Name, string(hyperJob.UID))
+	jobGroupInfo, found := sc.JobGroups[jobGroupID]
+	if !found {
+		klog.V(3).Infof("Failed to find jobGroupInfo %s", jobGroupID)
+		return nil
+	}
+
+	jobGroupInfo.UnsetOwner()
+	sc.deleteJobGroupInfo(jobGroupInfo)
+	return nil
+}
+
+func (sc *SchedulerCache) addJobInfoToJobGroup(jobInfo *schedulingapi.JobInfo) {
+	klog.V(3).Infof("Recieve add jobInfo %s to jobGroupInfo", jobInfo.UID)
+	if jobInfo.PodGroup == nil {
+		klog.Errorf("Failed to add jobInfo %s to jobGroupInfo, podGroup is nil", jobInfo.UID)
+		return
+	}
+
+	jobGroupID, IsNoneOwner, err := jobInfo.GetJobGroupID()
+	if err != nil {
+		klog.Errorf("Failed to get jobGroupID by jobInfo %s, err: %v", jobInfo.UID, err)
+		return
+	}
+
+	jobGroupInfo, found := sc.JobGroups[jobGroupID]
+	if !found {
+		jobGroupInfo = schedulingapi.NewJobGroupInfo(jobGroupID)
+		sc.JobGroups[jobGroupID] = jobGroupInfo
+		klog.V(3).Infof("Add new jobGroupInfo %s to cache", jobGroupID)
+	}
+
+	if IsNoneOwner {
+		// For job that isn't created by hyperJob, generate a jobGroup
+		jobGroup := schedulingapi.JobGroupInfo{
+			Name:         jobInfo.Name,
+			Namespace:    jobInfo.Namespace,
+			Replicas:     1,
+			MinAvailable: 1,
+			Owner: schedulingapi.JobGroupOwner{
+				Type: schedulingapi.OwnerTypeNone,
+			},
+			CreationTimestamp: jobInfo.PodGroup.GetCreationTimestamp(),
+		}
+		jobGroupInfo.SetJobGroup(&jobGroup)
+	}
+
+	err = jobGroupInfo.AddJobInfo(jobInfo)
+	if err != nil {
+		klog.Errorf("failed to add jobInfo %s to jobGroupInfo %s, err: %v", jobInfo.UID, jobGroupID, err)
+	}
+}
+
+func (sc *SchedulerCache) delJobInfoFromJobGroup(jobInfo *schedulingapi.JobInfo) {
+	klog.V(3).Infof("Recieve delete jobInfo %s from jobGroupInfo", jobInfo.UID)
+	if jobInfo.PodGroup == nil {
+		klog.Errorf("failed to delete jobInfo from jobGroupInfo, podGroup is nil")
+		return
+	}
+
+	jobGroupID, IsNoneOwner, err := jobInfo.GetJobGroupID()
+	if err != nil {
+		klog.Errorf("Failed to get jobGroupID by jobInfo %s, err: %v", jobInfo.UID, err)
+		return
+	}
+
+	jobGroupInfo, found := sc.JobGroups[jobGroupID]
+	if !found {
+		return
+	}
+
+	if IsNoneOwner {
+		// For job that isn't created by hyperJob, unset the jobGroupRef immediately
+		jobGroupInfo.UnsetOwner()
+	}
+
+	err = jobGroupInfo.DelJobInfo(jobInfo)
+	if err != nil {
+		klog.Errorf("failed to delete jobInfo %s from JobGroupInfo %s, err: %v", jobInfo.UID, jobGroupID, err)
+	}
+
+	if jobGroupInfo.IsTerminated() {
+		sc.deleteJobGroupInfo(jobGroupInfo)
 	}
 }

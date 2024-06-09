@@ -170,6 +170,7 @@ func TestAllocate(t *testing.T) {
 			schedulerCache := &cache.SchedulerCache{
 				Nodes:         make(map[string]*api.NodeInfo),
 				Jobs:          make(map[api.JobID]*api.JobInfo),
+				JobGroups:     make(map[api.JobGroupID]*api.JobGroupInfo),
 				Queues:        make(map[api.QueueID]*api.QueueInfo),
 				Binder:        binder,
 				StatusUpdater: &util.FakeStatusUpdater{},
@@ -328,6 +329,7 @@ func TestAllocateWithDynamicPVC(t *testing.T) {
 			schedulerCache := &cache.SchedulerCache{
 				Nodes:         make(map[string]*api.NodeInfo),
 				Jobs:          make(map[api.JobID]*api.JobInfo),
+				JobGroups:     make(map[api.JobGroupID]*api.JobGroupInfo),
 				Queues:        make(map[api.QueueID]*api.QueueInfo),
 				Binder:        binder,
 				StatusUpdater: &util.FakeStatusUpdater{},

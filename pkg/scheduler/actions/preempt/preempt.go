@@ -220,7 +220,7 @@ func preempt(
 		return nil, nil
 	}
 
-	predicateNodes, _ := predicateHelper.PredicateNodes(preemptor, allNodes, predicateFn, true)
+	predicateNodes, _ := predicateHelper.PredicateNodes(preemptor, allNodes, predicateFn, ssn.NodeGroupPredicate, true)
 
 	nodeScores := util.PrioritizeNodes(preemptor, predicateNodes, ssn.BatchNodeOrderFn, ssn.NodeOrderMapFn, ssn.NodeOrderReduceFn)
 
