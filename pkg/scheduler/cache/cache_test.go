@@ -102,6 +102,7 @@ func TestGetOrCreateJob(t *testing.T) {
 	cache := &SchedulerCache{
 		Nodes:          make(map[string]*api.NodeInfo),
 		Jobs:           make(map[api.JobID]*api.JobInfo),
+		JobGroups:      make(map[api.JobGroupID]*api.JobGroupInfo),
 		schedulerNames: []string{"volcano"},
 	}
 

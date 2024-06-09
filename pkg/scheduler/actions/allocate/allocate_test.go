@@ -215,7 +215,7 @@ func TestFareShareAllocate(t *testing.T) {
 			ExpectBindsNum: 1,
 		},
 		{
-			Name: "queueâ€™s DRF share value will be updated and its priority will change before it is put back into the priority queue",
+			Name: "queue¡¯s DRF share value will be updated and its priority will change before it is put back into the priority queue",
 			PodGroups: []*schedulingv1.PodGroup{
 				util.BuildPodGroup("pg-small-1", "ns-1", "q-1", 0, nil, schedulingv1.PodGroupRunning),
 				util.BuildPodGroup("pg-large-1", "ns-1", "q-1", 0, nil, schedulingv1.PodGroupInqueue),
@@ -242,7 +242,7 @@ func TestFareShareAllocate(t *testing.T) {
 			ExpectBindsNum: 2,
 		},
 		{
-			Name: "queueâ€™s one jobs has no pending tasks, should be put back to queues for next job",
+			Name: "queue¡¯s one jobs has no pending tasks, should be put back to queues for next job",
 			PodGroups: []*schedulingv1.PodGroup{
 				util.BuildPodGroup("pg-1", "ns-1", "q-1", 0, nil, schedulingv1.PodGroupRunning),
 				util.BuildPodGroup("pg-2", "ns-1", "q-1", 0, nil, schedulingv1.PodGroupInqueue),
@@ -404,6 +404,7 @@ func TestAllocateWithDynamicPVC(t *testing.T) {
 			schedulerCache := &cache.SchedulerCache{
 				Nodes:         make(map[string]*api.NodeInfo),
 				Jobs:          make(map[api.JobID]*api.JobInfo),
+				JobGroups:     make(map[api.JobGroupID]*api.JobGroupInfo),
 				Queues:        make(map[api.QueueID]*api.QueueInfo),
 				Binder:        binder,
 				StatusUpdater: &util.FakeStatusUpdater{},
