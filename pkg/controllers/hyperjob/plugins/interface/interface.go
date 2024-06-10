@@ -38,6 +38,10 @@ type PluginInterface interface {
 	// Note: it can be called multi times, must be idempotent
 	OnHyperJobAdd(hyperJob *vcbatch.HyperJob) error
 
+	// OnHyperJobDelete is called when do hyperJob cleanup
+	// Note: it can be called multi times, must be idempotent
+	OnHyperJobDelete(hyperJob *vcbatch.HyperJob) error
+
 	// OnJobCreate is called when creating jobs
 	OnJobCreate(job *vcbatch.Job, hyperJob *vcbatch.HyperJob) error
 }
