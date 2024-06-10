@@ -63,6 +63,8 @@ type ensureConditionOpts struct {
 	condition        metav1.Condition
 }
 
+const hyperJobFinalizer = "hyperjob.batch.volcano.sh/finalizer"
+
 func NewHyperJobReconciler(client client.Client, scheme *runtime.Scheme, record record.EventRecorder) *HyperJobReconciler {
 	return &HyperJobReconciler{Client: client, Scheme: scheme, Record: record}
 }
@@ -100,6 +102,19 @@ func (hjr *HyperJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	klog.V(2).Infof("The hyperjob Reconciler starts synchronizing %s/%s", hyperJob.Namespace, hyperJob.Name)
 	defer klog.V(2).Infof("HyperJob %s/%s has been synced", hyperJob.Namespace, hyperJob.Name)
+
+	if hyperJob.DeletionTimestamp != nil {
+		if err := hjr.cleanupHyperJob(&hyperJob); err != nil {
+			klog.Errorf("Cleanup hyperJob err: %v", err)
+			return ctrl.Result{}, err
+		}
+	}
+
+	if err := hjr.initiateHyperJob(&hyperJob); err != nil {
+		klog.Errorf("Initiate hyperJob err: %v", err)
+		return ctrl.Result{}, err
+	}
+
 	ownedJobs, err := hjr.getVcJobs(ctx, &hyperJob)
 	if err != nil {
 		klog.Errorf("Get vcjobs owned by %s/%s failed, err: %v", hyperJob.Namespace, hyperJob.Name, err)
@@ -109,11 +124,6 @@ func (hjr *HyperJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	vcJobsStatus := hjr.calculateVcJobStatus(&hyperJob, ownedJobs)
 	if err := hjr.updateVcJobsStatus(ctx, &hyperJob, vcJobsStatus); err != nil {
 		klog.Errorf("Update replication jobs status err: %v", err)
-		return ctrl.Result{}, err
-	}
-
-	if err := hjr.initiateHyperJob(&hyperJob, ownedJobs); err != nil {
-		klog.Errorf("Initiate hyperJob err: %v", err)
 		return ctrl.Result{}, err
 	}
 
@@ -224,14 +234,31 @@ func (hjr *HyperJobReconciler) calculateVcJobStatus(hyperJob *vcbatch.HyperJob, 
 	return vcJobsStatus
 }
 
-func (hjr *HyperJobReconciler) initiateHyperJob(hyperJob *vcbatch.HyperJob, ownedJobs *vcJobs) error {
-	if len(ownedJobs.active) > 0 || len(ownedJobs.succeeded) > 0 ||
-		len(ownedJobs.failed) > 0 || len(ownedJobs.delete) > 0 {
-		// If the number of vcJobs in any state is greater than 0, the hyperJob has been initialized
-		return nil
+func (hjr *HyperJobReconciler) initiateHyperJob(hyperJob *vcbatch.HyperJob) error {
+	if !containsFinalizer(hyperJob.ObjectMeta.Finalizers, hyperJobFinalizer) {
+		hyperJob.ObjectMeta.Finalizers = append(hyperJob.ObjectMeta.Finalizers, hyperJobFinalizer)
+		if err := hjr.Client.Update(context.TODO(), hyperJob); err != nil {
+			return err
+		}
+
+		return hjr.pluginOnHyperJobAdd(hyperJob)
+	}
+	return nil
+}
+
+func (hjr *HyperJobReconciler) cleanupHyperJob(hyperJob *vcbatch.HyperJob) error {
+	err := hjr.pluginOnHyperJobDelete(hyperJob)
+	if err != nil {
+		klog.Errorf("Failed to process plugin on hyperJob %s/%s delete", hyperJob.Namespace, hyperJob.Name)
 	}
 
-	return hjr.pluginOnHyperJobAdd(hyperJob)
+	if containsFinalizer(hyperJob.ObjectMeta.Finalizers, hyperJobFinalizer) {
+		hyperJob.ObjectMeta.Finalizers = removeFinalizer(hyperJob.ObjectMeta.Finalizers, hyperJobFinalizer)
+		if err := hjr.Client.Update(context.TODO(), hyperJob); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (hjr *HyperJobReconciler) syncVcJobs(ctx context.Context, hyperJob *vcbatch.HyperJob,
@@ -548,4 +575,23 @@ func (hjr *HyperJobReconciler) updateHyperJobStatus(ctx context.Context, opts en
 	}
 	hjr.Record.Eventf(opts.hyperJob, opts.eventType, opts.condition.Reason, opts.condition.Message)
 	return nil
+}
+
+func containsFinalizer(finalizers []string, name string) bool {
+	for _, finalizer := range finalizers {
+		if finalizer == name {
+			return true
+		}
+	}
+	return false
+}
+
+func removeFinalizer(finalizers []string, name string) []string {
+	var newFinalizers []string
+	for _, finalizer := range finalizers {
+		if finalizer != name {
+			newFinalizers = append(newFinalizers, finalizer)
+		}
+	}
+	return newFinalizers
 }

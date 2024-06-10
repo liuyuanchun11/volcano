@@ -39,7 +39,8 @@ func (hjr *HyperJobReconciler) pluginOnJobCreate(hyperJob *vcbatch.HyperJob, job
 			klog.Error(err)
 			return err
 		}
-		klog.V(4).Infof("Starting to execute plugin at <pluginOnJobCreate>: %s on hyperJob: <%s/%s>", name, hyperJob.Namespace, hyperJob.Name)
+		klog.V(4).Infof("Starting to execute plugin at <pluginOnJobCreate>: %s on hyperJob: <%s/%s>",
+			name, hyperJob.Namespace, hyperJob.Name)
 		if err := pb(client, args).OnJobCreate(job, hyperJob); err != nil {
 			klog.Errorf("Failed to process on job` create plugin %s, err %v.", name, err)
 			return err
@@ -60,9 +61,33 @@ func (hjr *HyperJobReconciler) pluginOnHyperJobAdd(hyperJob *vcbatch.HyperJob) e
 			klog.Error(err)
 			return err
 		}
-		klog.V(4).Infof("Starting to execute plugin at <pluginOnHyperJobAdd>: %s on hyperJob: <%s/%s>", name, hyperJob.Namespace, hyperJob.Name)
+		klog.V(4).Infof("Starting to execute plugin at <pluginOnHyperJobAdd>: %s on hyperJob: <%s/%s>",
+			name, hyperJob.Namespace, hyperJob.Name)
 		if err := pb(client, args).OnHyperJobAdd(hyperJob); err != nil {
 			klog.Errorf("Failed to process on hyperJob add plugin %s, err %v.", name, err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (hjr *HyperJobReconciler) pluginOnHyperJobDelete(hyperJob *vcbatch.HyperJob) error {
+	client := hjpluginsinterface.PluginClientset{
+		KubeClients: hjr.KubeClient,
+		VcClients:   hjr.VcClient,
+	}
+	for name, args := range hyperJob.Spec.Plugins {
+		pb, found := hyperjobplugins.GetPluginBuilder(name)
+		if !found {
+			err := fmt.Errorf("failed to get plugin %s", name)
+			klog.Error(err)
+			return err
+		}
+		klog.V(4).Infof("Starting to execute plugin at <pluginOnHyperJobDelete>: %s on hyperJob: <%s/%s>",
+			name, hyperJob.Namespace, hyperJob.Name)
+		if err := pb(client, args).OnHyperJobDelete(hyperJob); err != nil {
+			klog.Errorf("Failed to process on hyperJob delete plugin %s, err %v.", name, err)
 			return err
 		}
 	}
