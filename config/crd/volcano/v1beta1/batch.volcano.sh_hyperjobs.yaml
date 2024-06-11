@@ -47,15 +47,6 @@ spec:
             minAvailable:
               format: int32
               type: integer
-            network:
-              properties:
-                enableDNSHostnames:
-                  type: boolean
-                publishNotReadyAddresses:
-                  type: boolean
-                subdomain:
-                  type: string
-              type: object
             plugins:
               additionalProperties:
                 items:
