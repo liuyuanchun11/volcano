@@ -23,22 +23,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
-	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
 )
 
 var (
 	scheme = runtime.NewScheme()
 )
-
-type hyperJobController struct {
-	kubeClient kubernetes.Interface
-	vcClient   vcclient.Interface
-}
 
 func init() {
 	vcbatch.AddToScheme(scheme)
@@ -48,8 +41,8 @@ func init() {
 }
 
 func initWebhook() {
-	klog.V(3).Infof("Initializing hyperJob-controller")
-	defer klog.V(3).Infof("Initialized hyperJob-controller done")
+	klog.V(3).Infof("Initializing hyperJob webhook")
+	defer klog.V(3).Infof("Initialized hyperJob webhook done")
 
 	var qps float64
 	var burst int
@@ -65,28 +58,26 @@ func initWebhook() {
 		LeaderElection: false,
 	})
 	if err != nil {
-		klog.Errorf("Failed to create hyperJob controller err: %v", err)
+		klog.Errorf("Failed to create hyperJob webhook err: %v", err)
 		return
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	jobSetWebHook, err := NewHyperJobWebhook(mgr.GetClient())
+	hyperJobWebHook, err := NewHyperJobWebhook(mgr.GetClient())
 	if err != nil {
-		klog.Error(err, "unable to create webhook", "webhook", "JobSet")
+		klog.Errorf("Failed to new a hyperJob webhook err: %v", err)
 		return
 	}
-	if err := jobSetWebHook.SetupWebhookWithManager(mgr); err != nil {
-		klog.Error(err, "unable to set up webhook", "webhook", "JobSet")
+	if err := hyperJobWebHook.SetupWebhookWithManager(mgr); err != nil {
+		klog.Errorf("Failed to setup hyperJob webhook with manager err: %v", err)
 		return
 	}
 
 	go func() {
 		defer utilruntime.HandleCrash()
 		if err = mgr.Start(ctx); err != nil {
-			klog.Errorf("Failed to start hyperJob controller manager: %v", err)
+			klog.Errorf("Failed to start hyperJob webhook manager: %v", err)
 			os.Exit(1)
 		}
 	}()
-
-	return
 }
