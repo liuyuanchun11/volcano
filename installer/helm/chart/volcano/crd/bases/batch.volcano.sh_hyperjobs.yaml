@@ -3663,6 +3663,9 @@ spec:
                       type: integer
                     name:
                       type: string
+                    pending:
+                      format: int32
+                      type: integer
                     ready:
                       format: int32
                       type: integer
@@ -3673,6 +3676,7 @@ spec:
                   - active
                   - failed
                   - name
+                  - pending
                   - ready
                   - succeeded
                   type: object
