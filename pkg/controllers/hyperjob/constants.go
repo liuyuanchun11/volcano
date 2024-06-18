@@ -36,4 +36,5 @@ const (
 	JobStatusSucceeded string = "succeeded"
 	JobStatusFailed    string = "failed"
 	JobStatusActive    string = "active"
+	JobStatusPending   string = "pending"
 )
