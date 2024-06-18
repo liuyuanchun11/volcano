@@ -52,6 +52,7 @@ type vcJobs struct {
 	active    []*vcbatch.Job
 	succeeded []*vcbatch.Job
 	failed    []*vcbatch.Job
+	pending   []*vcbatch.Job
 
 	delete []*vcbatch.Job
 }
@@ -180,6 +181,8 @@ func (hjr *HyperJobReconciler) getVcJobs(ctx context.Context, hyperJob *vcbatch.
 			ownedJobs.succeeded = append(ownedJobs.succeeded, &vcJobList.Items[i])
 		case vcbatch.Failed, vcbatch.Terminated, vcbatch.Aborted:
 			ownedJobs.failed = append(ownedJobs.failed, &vcJobList.Items[i])
+		case vcbatch.Pending:
+			ownedJobs.pending = append(ownedJobs.pending, &vcJobList.Items[i])
 		default:
 			ownedJobs.active = append(ownedJobs.active, &vcJobList.Items[i])
 		}
@@ -188,13 +191,14 @@ func (hjr *HyperJobReconciler) getVcJobs(ctx context.Context, hyperJob *vcbatch.
 }
 
 func (hjr *HyperJobReconciler) calculateVcJobStatus(hyperJob *vcbatch.HyperJob, jobs *vcJobs) []vcbatch.ReplicatedJobStatus {
-	jobsReady := map[string]map[string]int32{}
+	jobsStatus := map[string]map[string]int32{}
 	for _, replicateJobs := range hyperJob.Spec.ReplicatedJobs {
-		jobsReady[replicateJobs.Name] = map[string]int32{
+		jobsStatus[replicateJobs.Name] = map[string]int32{
 			JobStatusReady:     0,
 			JobStatusSucceeded: 0,
 			JobStatusFailed:    0,
 			JobStatusActive:    0,
+			JobStatusPending:   0,
 		}
 	}
 
@@ -205,30 +209,33 @@ func (hjr *HyperJobReconciler) calculateVcJobStatus(hyperJob *vcbatch.HyperJob, 
 		}
 
 		if job.Status.Succeeded >= job.Status.MinAvailable {
-			jobsReady[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusReady]++
+			jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusReady]++
 		}
 
-		if job.Status.Running > 0 {
-			jobsReady[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusActive]++
-		}
+		jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusActive]++
+	}
+
+	for _, job := range jobs.pending {
+		jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusPending]++
 	}
 
 	for _, job := range jobs.succeeded {
-		jobsReady[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusSucceeded]++
+		jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusSucceeded]++
 	}
 
 	for _, job := range jobs.failed {
-		jobsReady[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusFailed]++
+		jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusFailed]++
 	}
 
 	var vcJobsStatus []vcbatch.ReplicatedJobStatus
-	for name, status := range jobsReady {
+	for name, status := range jobsStatus {
 		vcJobsStatus = append(vcJobsStatus, vcbatch.ReplicatedJobStatus{
 			Name:      name,
 			Ready:     status[JobStatusReady],
 			Succeeded: status[JobStatusSucceeded],
 			Failed:    status[JobStatusFailed],
 			Active:    status[JobStatusActive],
+			Pending:   status[JobStatusPending],
 		})
 	}
 	return vcJobsStatus
@@ -336,7 +343,8 @@ func (hjr *HyperJobReconciler) deleteVcJobs(ctx context.Context, jobsDelete []*v
 }
 
 func (hjr *HyperJobReconciler) executeFailurePolicy(ctx context.Context, hyperJob *vcbatch.HyperJob, ownedJobs *vcJobs) error {
-	// TODO no failure policy
+	// Default policy：
+	// HyperJob will set fail for any job state is failed
 	firstFailedJob := hjr.getFirstFailedJob(ownedJobs.failed)
 	if firstFailedJob == nil {
 		return fmt.Errorf("failed to get first failed job")
@@ -346,8 +354,14 @@ func (hjr *HyperJobReconciler) executeFailurePolicy(ctx context.Context, hyperJo
 }
 
 func (hjr *HyperJobReconciler) executeSuccessPolicy(ctx context.Context, hyperJob *vcbatch.HyperJob, ownedJobs *vcJobs) (bool, error) {
-	// TODO no success policy
-	if len(ownedJobs.succeeded) >= int(hyperJob.Spec.MinAvailable) {
+	// Default policy：
+	// HyperJob will set completed for all jobs state are completed
+	replicasNum := 0
+	for _, replicateJobs := range hyperJob.Spec.ReplicatedJobs {
+		replicasNum += int(replicateJobs.Replicas)
+	}
+
+	if len(ownedJobs.succeeded) >= replicasNum {
 		err := hjr.setHyperJobCompleted(ctx, hyperJob, AllJobsCompletedReason, AllJobsCompletedMessage)
 		if err != nil {
 			return false, err
@@ -423,7 +437,7 @@ func (hjr *HyperJobReconciler) checkNeedCreateVcJobs(hyperJob *vcbatch.HyperJob,
 }
 
 func (hjr *HyperJobReconciler) shouldCreateJob(jobName string, ownedJobs *vcJobs) bool {
-	for _, job := range Concat(ownedJobs.active, ownedJobs.succeeded, ownedJobs.failed, ownedJobs.delete) {
+	for _, job := range Concat(ownedJobs.active, ownedJobs.succeeded, ownedJobs.failed, ownedJobs.pending, ownedJobs.delete) {
 		if jobName == job.Name {
 			return false
 		}
