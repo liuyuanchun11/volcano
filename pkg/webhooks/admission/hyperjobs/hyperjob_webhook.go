@@ -20,10 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -61,6 +61,8 @@ func (hj *HyperJobWebhook) Default(ctx context.Context, obj runtime.Object) erro
 		return nil
 	}
 
+	klog.V(2).Infof("Process webhook default for hyperJob %s/%s", hyperJob.Namespace, hyperJob.Name)
+
 	if hyperJob.Spec.MinAvailable == 0 {
 		var minAvailable int32
 		for _, rj := range hyperJob.Spec.ReplicatedJobs {
@@ -89,6 +91,9 @@ func (hj *HyperJobWebhook) ValidateCreate(ctx context.Context, obj runtime.Objec
 	if !ok {
 		return nil, fmt.Errorf("expected a HyperJob but got a %T", obj)
 	}
+
+	klog.V(2).Infof("Process ValidateCreate for hyperJob %s/%s", hyperJob.Namespace, hyperJob.Name)
+
 	var allErrs []error
 
 	//TODO Currently, the number of supported ReplicatedJobs is 1
