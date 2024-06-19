@@ -343,7 +343,7 @@ func (hjr *HyperJobReconciler) deleteVcJobs(ctx context.Context, jobsDelete []*v
 }
 
 func (hjr *HyperJobReconciler) executeFailurePolicy(ctx context.Context, hyperJob *vcbatch.HyperJob, ownedJobs *vcJobs) error {
-	// Default policy：
+	// Default policy
 	// HyperJob will set fail for any job state is failed
 	firstFailedJob := hjr.getFirstFailedJob(ownedJobs.failed)
 	if firstFailedJob == nil {
@@ -354,7 +354,7 @@ func (hjr *HyperJobReconciler) executeFailurePolicy(ctx context.Context, hyperJo
 }
 
 func (hjr *HyperJobReconciler) executeSuccessPolicy(ctx context.Context, hyperJob *vcbatch.HyperJob, ownedJobs *vcJobs) (bool, error) {
-	// Default policy：
+	// Default policy
 	// HyperJob will set completed for all jobs state are completed
 	replicasNum := 0
 	for _, replicateJobs := range hyperJob.Spec.ReplicatedJobs {
