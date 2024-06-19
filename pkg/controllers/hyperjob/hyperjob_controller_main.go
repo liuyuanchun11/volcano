@@ -92,6 +92,16 @@ func (hjc *hyperJobController) Initialize(opt *framework.ControllerOption) error
 		return err
 	}
 
+	hyperJobWebHook, err := NewHyperJobWebhook(mgr.GetClient())
+	if err != nil {
+		klog.Errorf("Failed to new a hyperJob webhook err: %v", err)
+		return err
+	}
+	if err := hyperJobWebHook.SetupWebhookWithManager(mgr); err != nil {
+		klog.Errorf("Failed to setup hyperJob webhook with manager err: %v", err)
+		return err
+	}
+
 	go func() {
 		defer utilruntime.HandleCrash()
 		if err = mgr.Start(ctx); err != nil {
