@@ -124,3 +124,23 @@ func DecodePodGroup(object runtime.RawExtension, resource metav1.GroupVersionRes
 
 	return &podgroup, nil
 }
+
+// DecodeHyperJob decodes the hyperjob using deserializer from the raw object.
+func DecodeHyperJob(object runtime.RawExtension, resource metav1.GroupVersionResource) (*batchv1alpha1.HyperJob, error) {
+	hyperJobResource := metav1.GroupVersionResource{Group: batchv1alpha1.SchemeGroupVersion.Group, Version: batchv1alpha1.SchemeGroupVersion.Version, Resource: "hyperjobs"}
+	raw := object.Raw
+	hyperJob := batchv1alpha1.HyperJob{}
+
+	if resource != hyperJobResource {
+		err := fmt.Errorf("expect resource to be %s", hyperJobResource)
+		return &hyperJob, err
+	}
+
+	deserializer := Codecs.UniversalDeserializer()
+	if _, _, err := deserializer.Decode(raw, nil, &hyperJob); err != nil {
+		return &hyperJob, err
+	}
+	klog.V(3).Infof("the hyperjob struct is %+v", hyperJob)
+
+	return &hyperJob, nil
+}
