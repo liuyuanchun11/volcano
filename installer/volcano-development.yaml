@@ -8586,6 +8586,84 @@ webhooks:
 ---
 # Source: volcano/templates/webhooks.yaml
 apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: volcano-admission-service-hyperjobs-mutate
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: volcano-admission-service
+        namespace: volcano-system
+        path: /hyperjobs/mutate
+        port: 443
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    name: mutatehyperjob.volcano.sh
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - volcano-system
+            - kube-system
+    objectSelector: {}
+    reinvocationPolicy: Never
+    rules:
+      - apiGroups:
+          - batch.volcano.sh
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - hyperjobs
+        scope: '*'
+    sideEffects: NoneOnDryRun
+    timeoutSeconds: 10
+---
+# Source: volcano/templates/webhooks.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: volcano-admission-service-hyperjobs-validate
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: volcano-admission-service
+        namespace: volcano-system
+        path: /hyperjobs/validate
+        port: 443
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    name: validatehyperjob.volcano.sh
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - volcano-system
+            - kube-system
+    objectSelector: {}
+    rules:
+      - apiGroups:
+          - batch.volcano.sh
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - hyperjobs
+        scope: '*'
+    sideEffects: NoneOnDryRun
+    timeoutSeconds: 10
+---
+# Source: volcano/templates/webhooks.yaml
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: volcano-admission-service-pods-validate
