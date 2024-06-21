@@ -29,7 +29,7 @@ const (
 	defaultSchedulerName     = "volcano"
 	defaultQPS               = 50.0
 	defaultBurst             = 100
-	defaultEnabledAdmission  = "/jobs/mutate,/jobs/validate,/podgroups/mutate,/pods/validate,/pods/mutate,/queues/mutate,/queues/validate"
+	defaultEnabledAdmission  = "/hyperjobs/mutate,/hyperjobs/validate,/jobs/mutate,/jobs/validate,/podgroups/mutate,/pods/validate,/pods/mutate,/queues/mutate,/queues/validate"
 	defaultIgnoredNamespaces = "volcano-system,kube-system"
 	defaultHealthzAddress    = ":11251"
 )
