@@ -18,6 +18,7 @@ package framework
 
 import (
 	"fmt"
+	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -28,7 +29,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog/v2"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"volcano.sh/apis/pkg/apis/scheduling"
@@ -59,6 +59,7 @@ type Session struct {
 	Jobs           map[api.JobID]*api.JobInfo
 	JobGroups      map[api.JobGroupID]*api.JobGroupInfo
 	Nodes          map[string]*api.NodeInfo
+	NodeGroups     map[string][]*api.NodeInfo
 	CSINodesStatus map[string]*api.CSINodeStatusInfo
 	RevocableNodes map[string]*api.NodeInfo
 	Queues         map[api.QueueID]*api.QueueInfo
@@ -104,6 +105,7 @@ type Session struct {
 	jobStarvingFns        map[string]api.ValidateFn
 	jobGroupReadyFns      map[string]api.ValidateFn
 	nodeGroupPredicateFns map[string]api.NodeGroupPredicateFn
+	nodeGroupOrderFns     map[string]api.NodeGroupOrderFn
 }
 
 func openSession(cache cache.Cache) *Session {
@@ -121,6 +123,7 @@ func openSession(cache cache.Cache) *Session {
 		Jobs:           map[api.JobID]*api.JobInfo{},
 		JobGroups:      map[api.JobGroupID]*api.JobGroupInfo{},
 		Nodes:          map[string]*api.NodeInfo{},
+		NodeGroups:     map[string][]*api.NodeInfo{},
 		CSINodesStatus: map[string]*api.CSINodeStatusInfo{},
 		RevocableNodes: map[string]*api.NodeInfo{},
 		Queues:         map[api.QueueID]*api.QueueInfo{},
@@ -153,6 +156,7 @@ func openSession(cache cache.Cache) *Session {
 		jobStarvingFns:        map[string]api.ValidateFn{},
 		jobGroupReadyFns:      map[string]api.ValidateFn{},
 		nodeGroupPredicateFns: map[string]api.NodeGroupPredicateFn{},
+		nodeGroupOrderFns:     map[string]api.NodeGroupOrderFn{},
 	}
 
 	snapshot := cache.Snapshot()
@@ -192,6 +196,18 @@ func openSession(cache cache.Cache) *Session {
 
 	ssn.NodeList = util.GetNodeList(snapshot.Nodes, snapshot.NodeList)
 	ssn.Nodes = snapshot.Nodes
+
+	for _, node := range ssn.Nodes {
+		hyperNodeId, exist := node.Node.Labels["volcano.sh/hypernode"]
+		if !exist {
+			continue
+		}
+		if _, exist := ssn.NodeGroups[hyperNodeId]; !exist {
+			ssn.NodeGroups[hyperNodeId] = make([]*api.NodeInfo, 0)
+		}
+		ssn.NodeGroups[hyperNodeId] = append(ssn.NodeGroups[hyperNodeId], node)
+	}
+
 	ssn.CSINodesStatus = snapshot.CSINodesStatus
 	ssn.RevocableNodes = snapshot.RevocableNodes
 	ssn.Queues = snapshot.Queues

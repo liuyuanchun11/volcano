@@ -852,3 +852,28 @@ func (ssn *Session) NodeGroupPredicate(task *api.TaskInfo, predicateNode []*api.
 	}
 	return filteredNodes, nil
 }
+
+func (ssn *Session) NodeGroupOrder(jobGroup *api.JobGroupInfo, jobInfo *api.JobInfo, predicateNodeGroup map[string][]*api.NodeInfo) (map[string]float64, error) {
+	nodeGroupScores := make(map[string]float64)
+	for _, tier := range ssn.Tiers {
+		for _, plugin := range tier.Plugins {
+			pfn, found := ssn.nodeGroupOrderFns[plugin.Name]
+			if !found {
+				continue
+			}
+			scoreTmp, err := pfn(jobGroup, jobInfo, predicateNodeGroup)
+			if err != nil {
+				return nodeGroupScores, err
+			}
+
+			for nodeGroupId, score := range scoreTmp {
+				if _, ok := nodeGroupScores[nodeGroupId]; ok {
+					nodeGroupScores[nodeGroupId] += score
+				} else {
+					nodeGroupScores[nodeGroupId] = score
+				}
+			}
+		}
+	}
+	return nodeGroupScores, nil
+}

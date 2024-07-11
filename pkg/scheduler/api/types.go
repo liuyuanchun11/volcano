@@ -210,3 +210,5 @@ type AllocatableFn func(*QueueInfo, *TaskInfo) bool
 
 // NodeGroupPredicateFn is the func declaration used to predicate nodegroup for job.
 type NodeGroupPredicateFn func(*TaskInfo, []*NodeInfo) ([]*NodeInfo, error)
+
+type NodeGroupOrderFn func(*JobGroupInfo, *JobInfo, map[string][]*NodeInfo) (map[string]float64, error)
