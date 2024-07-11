@@ -397,3 +397,47 @@ func (s *Statement) Commit() {
 		}
 	}
 }
+
+func (s *Statement) SaveOperations() *Statement {
+	stmtTmp := &Statement{}
+
+	for _, op := range s.operations {
+		stmtTmp.operations = append(stmtTmp.operations, operation{
+			name:   op.name,
+			task:   op.task.Clone(),
+			reason: op.reason,
+		})
+	}
+	return stmtTmp
+}
+
+func (s *Statement) RecoverOperations(stmt *Statement) error {
+	for _, op := range stmt.operations {
+		switch op.name {
+		case Evict:
+			err := s.Evict(op.task, op.reason)
+			if err != nil {
+				klog.Errorf("Failed to evict task: %s", err.Error())
+				return err
+			}
+		case Pipeline:
+			err := s.Pipeline(op.task, op.task.NodeName)
+			if err != nil {
+				klog.Errorf("Failed to evict task: %s", err.Error())
+				return err
+			}
+		case Allocate:
+			node := s.ssn.Nodes[op.task.NodeName]
+			err := s.Allocate(op.task, node)
+			if err != nil {
+				if e := s.unallocate(op.task); e != nil {
+					klog.Errorf("Failed to unallocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, e)
+				}
+				klog.Errorf("Failed to allocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
