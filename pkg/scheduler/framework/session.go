@@ -19,6 +19,7 @@ package framework
 import (
 	"fmt"
 	"k8s.io/klog/v2"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -625,4 +626,78 @@ func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, e
 	}
 
 	return job.Queue, nil
+}
+
+func (ssn *Session) NewSsnFragement(nodeGroupId string, jobGroup *api.JobGroupInfo, job *api.JobInfo) *Session {
+	ssnFragment := &Session{
+		UID: uuid.NewUUID(),
+
+		Jobs:       map[api.JobID]*api.JobInfo{},
+		JobGroups:  map[api.JobGroupID]*api.JobGroupInfo{},
+		NodeGroups: map[string][]*api.NodeInfo{},
+		Nodes:      map[string]*api.NodeInfo{},
+		Queues:     map[api.QueueID]*api.QueueInfo{},
+
+		plugins:               map[string]Plugin{},
+		jobOrderFns:           map[string]api.CompareFn{},
+		queueOrderFns:         map[string]api.CompareFn{},
+		taskOrderFns:          map[string]api.CompareFn{},
+		clusterOrderFns:       map[string]api.CompareFn{},
+		predicateFns:          map[string]api.PredicateFn{},
+		prePredicateFns:       map[string]api.PrePredicateFn{},
+		bestNodeFns:           map[string]api.BestNodeFn{},
+		nodeOrderFns:          map[string]api.NodeOrderFn{},
+		batchNodeOrderFns:     map[string]api.BatchNodeOrderFn{},
+		nodeMapFns:            map[string]api.NodeMapFn{},
+		nodeReduceFns:         map[string]api.NodeReduceFn{},
+		preemptableFns:        map[string]api.EvictableFn{},
+		reclaimableFns:        map[string]api.EvictableFn{},
+		overusedFns:           map[string]api.ValidateFn{},
+		preemptiveFns:         map[string]api.ValidateFn{},
+		allocatableFns:        map[string]api.AllocatableFn{},
+		jobReadyFns:           map[string]api.ValidateFn{},
+		jobPipelinedFns:       map[string]api.VoteFn{},
+		jobValidFns:           map[string]api.ValidateExFn{},
+		jobEnqueueableFns:     map[string]api.VoteFn{},
+		jobEnqueuedFns:        map[string]api.JobEnqueuedFn{},
+		targetJobFns:          map[string]api.TargetJobFn{},
+		reservedNodesFns:      map[string]api.ReservedNodesFn{},
+		victimTasksFns:        map[string][]api.VictimTasksFn{},
+		jobStarvingFns:        map[string]api.ValidateFn{},
+		jobGroupReadyFns:      map[string]api.ValidateFn{},
+		nodeGroupPredicateFns: map[string]api.NodeGroupPredicateFn{},
+		nodeGroupOrderFns:     map[string]api.NodeGroupOrderFn{},
+	}
+
+	ssnFragment.Jobs[job.UID] = job.Clone()
+	ssnFragment.JobGroups[jobGroup.UID] = jobGroup.Clone()
+
+	ssnFragment.NodeGroups[nodeGroupId] = make([]*api.NodeInfo, 0)
+	for _, node := range ssn.NodeGroups[nodeGroupId] {
+		ssnFragment.Nodes[node.Name] = node.Clone()
+		ssnFragment.NodeList = append(ssnFragment.NodeList, node)
+		ssnFragment.NodeGroups[nodeGroupId] = append(ssnFragment.NodeGroups[nodeGroupId], node)
+	}
+
+	for _, n := range ssnFragment.Nodes {
+		ssn.TotalResource.Add(n.Allocatable)
+	}
+
+	ssnFragment.Tiers = ssn.Tiers
+
+	for _, tier := range ssn.Tiers {
+		for _, plugin := range tier.Plugins {
+			if pb, found := GetPluginBuilder(plugin.Name); !found {
+				klog.Errorf("Failed to get plugin %s.", plugin.Name)
+			} else {
+				plugin := pb(plugin.Arguments)
+				ssn.plugins[plugin.Name()] = plugin
+				onSessionOpenStart := time.Now()
+				plugin.OnSessionOpen(ssn)
+				metrics.UpdatePluginDuration(plugin.Name(), metrics.OnSessionOpen, metrics.Duration(onSessionOpenStart))
+			}
+		}
+	}
+
+	return ssn
 }

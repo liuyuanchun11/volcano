@@ -398,46 +398,29 @@ func (s *Statement) Commit() {
 	}
 }
 
-func (s *Statement) SaveOperations() *Statement {
-	stmtTmp := &Statement{}
+func (s *Statement) CommitFragementStmt(fragStmt *Statement) {
+	ssn := s.ssn
 
-	for _, op := range s.operations {
-		stmtTmp.operations = append(stmtTmp.operations, operation{
-			name:   op.name,
-			task:   op.task.Clone(),
-			reason: op.reason,
-		})
-	}
-	return stmtTmp
-}
+	// 从切片的statement获取到task的操作，重新在session上走一遍
+	for _, op := range fragStmt.operations {
+		var task *api.TaskInfo
 
-func (s *Statement) RecoverOperations(stmt *Statement) error {
-	for _, op := range stmt.operations {
-		switch op.name {
-		case Evict:
-			err := s.Evict(op.task, op.reason)
-			if err != nil {
-				klog.Errorf("Failed to evict task: %s", err.Error())
-				return err
-			}
-		case Pipeline:
-			err := s.Pipeline(op.task, op.task.NodeName)
-			if err != nil {
-				klog.Errorf("Failed to evict task: %s", err.Error())
-				return err
-			}
-		case Allocate:
-			node := s.ssn.Nodes[op.task.NodeName]
-			err := s.Allocate(op.task, node)
-			if err != nil {
-				if e := s.unallocate(op.task); e != nil {
-					klog.Errorf("Failed to unallocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, e)
-				}
-				klog.Errorf("Failed to allocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, err)
-				return err
+		node := ssn.Nodes[op.task.NodeName]
+		job := ssn.Jobs[op.task.Job]
+		for _, t := range job.Tasks {
+			if t.UID == op.task.UID {
+				task = t
+				break
 			}
 		}
-	}
 
-	return nil
+		switch op.name {
+		case Allocate:
+			s.Allocate(task, node)
+		case Evict:
+			s.Evict(task, op.reason)
+		case Pipeline:
+			s.Pipeline(task, node.Name)
+		}
+	}
 }
