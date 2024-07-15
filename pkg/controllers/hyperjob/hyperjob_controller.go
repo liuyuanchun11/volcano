@@ -444,7 +444,7 @@ func (hjr *HyperJobReconciler) shouldCreateJob(jobName string, ownedJobs *vcJobs
 			return false
 		}
 	}
-	return true
+	return false
 }
 
 func (hjr *HyperJobReconciler) constructJob(hyperJob *vcbatch.HyperJob, rjob *vcbatch.ReplicatedJob, jobIdx int) (*vcbatch.Job, error) {
