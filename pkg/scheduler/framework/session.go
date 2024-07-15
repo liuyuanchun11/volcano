@@ -691,9 +691,9 @@ func (ssn *Session) NewSsnFragement(nodeGroupId string, jobGroup *api.JobGroupIn
 				klog.Errorf("Failed to get plugin %s.", plugin.Name)
 			} else {
 				plugin := pb(plugin.Arguments)
-				ssn.plugins[plugin.Name()] = plugin
+				ssnFragment.plugins[plugin.Name()] = plugin
 				onSessionOpenStart := time.Now()
-				plugin.OnSessionOpen(ssn)
+				plugin.OnSessionOpen(ssnFragment)
 				metrics.UpdatePluginDuration(plugin.Name(), metrics.OnSessionOpen, metrics.Duration(onSessionOpenStart))
 			}
 		}

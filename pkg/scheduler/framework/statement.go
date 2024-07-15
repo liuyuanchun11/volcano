@@ -397,30 +397,3 @@ func (s *Statement) Commit() {
 		}
 	}
 }
-
-func (s *Statement) CommitFragementStmt(fragStmt *Statement) {
-	ssn := s.ssn
-
-	// 从切片的statement获取到task的操作，重新在session上走一遍
-	for _, op := range fragStmt.operations {
-		var task *api.TaskInfo
-
-		node := ssn.Nodes[op.task.NodeName]
-		job := ssn.Jobs[op.task.Job]
-		for _, t := range job.Tasks {
-			if t.UID == op.task.UID {
-				task = t
-				break
-			}
-		}
-
-		switch op.name {
-		case Allocate:
-			s.Allocate(task, node)
-		case Evict:
-			s.Evict(task, op.reason)
-		case Pipeline:
-			s.Pipeline(task, node.Name)
-		}
-	}
-}
