@@ -227,16 +227,18 @@ func (hjr *HyperJobReconciler) calculateVcJobStatus(hyperJob *vcbatch.HyperJob, 
 		jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusFailed]++
 	}
 
-	var vcJobsStatus []vcbatch.ReplicatedJobStatus
+	vcJobsStatus := initRjStatus(hyperJob)
 	for name, status := range jobsStatus {
-		vcJobsStatus = append(vcJobsStatus, vcbatch.ReplicatedJobStatus{
-			Name:      name,
-			Ready:     status[JobStatusReady],
-			Succeeded: status[JobStatusSucceeded],
-			Failed:    status[JobStatusFailed],
-			Active:    status[JobStatusActive],
-			Pending:   status[JobStatusPending],
-		})
+		for _, rjStatus := range vcJobsStatus {
+			if rjStatus.Name == name {
+				rjStatus.Ready = status[JobStatusReady]
+				rjStatus.Succeeded = status[JobStatusSucceeded]
+				rjStatus.Failed = status[JobStatusFailed]
+				rjStatus.Active = status[JobStatusActive]
+				rjStatus.Pending = status[JobStatusPending]
+				break
+			}
+		}
 	}
 	return vcJobsStatus
 }
@@ -589,6 +591,21 @@ func (hjr *HyperJobReconciler) updateHyperJobStatus(ctx context.Context, opts en
 	}
 	hjr.Record.Eventf(opts.hyperJob, opts.eventType, opts.condition.Reason, opts.condition.Message)
 	return nil
+}
+
+func initRjStatus(hyperJob *vcbatch.HyperJob) []vcbatch.ReplicatedJobStatus {
+	rjStatus := make([]vcbatch.ReplicatedJobStatus, 0)
+	for _, rj := range hyperJob.Spec.ReplicatedJobs {
+		rjStatus = append(rjStatus, vcbatch.ReplicatedJobStatus{
+			Name:      rj.Name,
+			Active:    0,
+			Ready:     0,
+			Succeeded: 0,
+			Failed:    0,
+			Pending:   0,
+		})
+	}
+	return rjStatus
 }
 
 func containsFinalizer(finalizers []string, name string) bool {
