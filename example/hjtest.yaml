@@ -1,0 +1,26 @@
+apiVersion: batch.volcano.sh/v1alpha1
+kind: HyperJob
+metadata:
+  name: hyperjob-a
+spec:
+  plugins:
+  replicatedJobs:
+    - name: job-a
+      replicas: 2
+      template:
+        tasks:
+          - replicas: 2
+            name: "work"
+            template:
+              metadata:
+                name: test
+              spec:
+                containers:
+                  - image: alpine
+                    imagePullPolicy: IfNotPresent
+                    name: alpine
+                    command: ["/bin/sh", "-c", "echo Hello Kubernetes! && sleep 100000"]
+                    resources:
+                      requests:
+                        cpu: "10m"
+                restartPolicy: OnFailure
