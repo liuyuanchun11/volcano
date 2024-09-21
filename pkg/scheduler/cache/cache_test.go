@@ -102,6 +102,7 @@ func TestGetOrCreateJob(t *testing.T) {
 	cache := &SchedulerCache{
 		Nodes:          make(map[string]*api.NodeInfo),
 		Jobs:           make(map[api.JobID]*api.JobInfo),
+		JobGroups:      make(map[api.JobGroupID]*api.JobGroupInfo),
 		schedulerNames: []string{"volcano"},
 	}
 
@@ -136,6 +137,7 @@ func TestSchedulerCache_Bind_NodeWithSufficientResources(t *testing.T) {
 
 	cache := &SchedulerCache{
 		Jobs:            make(map[api.JobID]*api.JobInfo),
+		JobGroups: make(map[api.JobGroupID]*api.JobGroupInfo),
 		Nodes:           make(map[string]*api.NodeInfo),
 		Binder:          util.NewFakeBinder(0),
 		BindFlowChannel: make(chan *api.TaskInfo, 5000),
@@ -165,6 +167,7 @@ func TestSchedulerCache_Bind_NodeWithInsufficientResources(t *testing.T) {
 
 	cache := &SchedulerCache{
 		Jobs:            make(map[api.JobID]*api.JobInfo),
+		JobGroups: make(map[api.JobGroupID]*api.JobGroupInfo),
 		Nodes:           make(map[string]*api.NodeInfo),
 		Binder:          util.NewFakeBinder(0),
 		BindFlowChannel: make(chan *api.TaskInfo, 5000),

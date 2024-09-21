@@ -74,7 +74,7 @@ func (backfill *Action) Execute(ssn *framework.Session) {
 			break
 		}
 
-		predicateNodes, fitErrors := ph.PredicateNodes(task, ssn.NodeList, predicateFunc, backfill.enablePredicateErrorCache)
+		predicateNodes, fitErrors := ph.PredicateNodes(task, ssn.NodeList, predicateFunc, ssn.NodeGroupPredicate, backfill.enablePredicateErrorCache)
 		if len(predicateNodes) == 0 {
 			job.NodesFitErrors[task.UID] = fitErrors
 			break

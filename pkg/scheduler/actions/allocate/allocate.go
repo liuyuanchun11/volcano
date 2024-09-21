@@ -215,7 +215,7 @@ func (alloc *Action) allocateResourcesForTasks(tasks *util.PriorityQueue, job *a
 			break
 		}
 
-		predicateNodes, fitErrors := ph.PredicateNodes(task, allNodes, alloc.predicate, alloc.enablePredicateErrorCache)
+		predicateNodes, fitErrors := ph.PredicateNodes(task, allNodes, alloc.predicate, ssn.NodeGroupPredicate, alloc.enablePredicateErrorCache)
 		if len(predicateNodes) == 0 {
 			job.NodesFitErrors[task.UID] = fitErrors
 			// Assume that all left tasks are allocatable, but can not meet gang-scheduling min member,

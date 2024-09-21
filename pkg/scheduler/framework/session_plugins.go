@@ -150,6 +150,16 @@ func (ssn *Session) AddJobStarvingFns(name string, fn api.ValidateFn) {
 	ssn.jobStarvingFns[name] = fn
 }
 
+// AddJobGroupReadyFn add JobGroup ready function
+func (ssn *Session) AddJobGroupReadyFn(name string, fn api.ValidateFn) {
+	ssn.jobGroupReadyFns[name] = fn
+}
+
+// AddNodeGroupPredicateFn add nodeGroup predicate function
+func (ssn *Session) AddNodeGroupPredicateFn(name string, fn api.NodeGroupPredicateFn) {
+	ssn.nodeGroupPredicateFns[name] = fn
+}
+
 // Reclaimable invoke reclaimable function of the plugins
 func (ssn *Session) Reclaimable(reclaimer *api.TaskInfo, reclaimees []*api.TaskInfo) []*api.TaskInfo {
 	var victims []*api.TaskInfo
@@ -811,4 +821,39 @@ func (ssn *Session) BuildVictimsPriorityQueue(victims []*api.TaskInfo) *util.Pri
 		victimsQueue.Push(victim)
 	}
 	return victimsQueue
+}
+
+func (ssn *Session) JobGroupReady(obj interface{}) bool {
+	for _, tier := range ssn.Tiers {
+		for _, plugin := range tier.Plugins {
+			jrf, found := ssn.jobGroupReadyFns[plugin.Name]
+			if !found {
+				continue
+			}
+
+			if !jrf(obj) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (ssn *Session) NodeGroupPredicate(task *api.TaskInfo, predicateNode []*api.NodeInfo) ([]*api.NodeInfo, error) {
+	filteredNodes := predicateNode
+	var err error
+	for _, tier := range ssn.Tiers {
+		for _, plugin := range tier.Plugins {
+			pfn, found := ssn.nodeGroupPredicateFns[plugin.Name]
+			if !found {
+				continue
+			}
+			filteredNodes, err = pfn(task, filteredNodes)
+			if err != nil {
+				return filteredNodes, err
+			}
+		}
+	}
+	return filteredNodes, nil
 }

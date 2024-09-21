@@ -311,3 +311,6 @@ type VictimTasksFn func([]*TaskInfo) []*TaskInfo
 
 // AllocatableFn is the func declaration used to check whether the task can be allocated
 type AllocatableFn func(*QueueInfo, *TaskInfo) bool
+
+// NodeGroupPredicateFn is the func declaration used to predicate nodegroup for job.
+type NodeGroupPredicateFn func(*TaskInfo, []*NodeInfo) ([]*NodeInfo, error)
