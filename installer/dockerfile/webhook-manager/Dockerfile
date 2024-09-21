@@ -15,7 +15,7 @@
 FROM golang:1.22.2 AS builder
 WORKDIR /go/src/volcano.sh/
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go env -w GOPROXY=https://goproxy.cn,direct && go env -w GOSUMDB=sum.golang.org && go mod download
 ADD . volcano
 RUN cd volcano && make vc-webhook-manager
 
