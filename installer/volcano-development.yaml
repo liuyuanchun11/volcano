@@ -147,8 +147,8 @@ spec:
             - --port=8443
             - -v=4
             - 2>&1
-          image: docker.io/volcanosh/vc-webhook-manager:v1.10.0
-          imagePullPolicy: Always
+          image: docker.io/volcanosh/vc-webhook-manager:1.1.1
+          imagePullPolicy: IfNotPresent
           name: admission
           volumeMounts:
             - mountPath: /admission.local.config/certificates
@@ -231,8 +231,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: main
-          image: docker.io/volcanosh/vc-webhook-manager:v1.10.0
-          imagePullPolicy: Always
+          image: docker.io/volcanosh/vc-webhook-manager:1.1.1
+          imagePullPolicy: IfNotPresent
           command: ["./gen-admission-secret.sh", "--service", "volcano-admission-service", "--namespace",
                     "volcano-system", "--secret", "volcano-admission-secret"]
 ---
@@ -8340,14 +8340,14 @@ spec:
       priorityClassName: system-cluster-critical
       containers:
           - name: volcano-controllers
-            image: docker.io/volcanosh/vc-controller-manager:v1.10.0
+            image: docker.io/volcanosh/vc-controller-manager:1.1.1
             args:
               - --logtostderr
               - --enable-healthz=true
               - --leader-elect=false
               - -v=4
               - 2>&1
-            imagePullPolicy: Always
+            imagePullPolicy: IfNotPresent
 ---
 # Source: volcano/templates/scheduler.yaml
 apiVersion: v1
@@ -8517,7 +8517,7 @@ spec:
       priorityClassName: system-cluster-critical
       containers:
         - name: volcano-scheduler
-          image: docker.io/volcanosh/vc-scheduler:v1.10.0
+          image: docker.io/volcanosh/vc-scheduler:1.1.1
           args:
             - --logtostderr
             - --scheduler-conf=/volcano.scheduler/volcano-scheduler.conf
@@ -8529,7 +8529,7 @@ spec:
           env:
             - name: DEBUG_SOCKET_DIR
               value: /tmp/klog-socks
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: scheduler-config
               mountPath: /volcano.scheduler
