@@ -1,0 +1,27 @@
+apiVersion: batch.volcano.sh/v1alpha1
+kind: Job
+metadata:
+  name: job-a
+spec:
+  minAvailable: 1
+  schedulerName: volcano
+  policies:
+  plugins:
+  maxRetry: 5
+  queue: default
+  tasks:
+    - replicas: 2
+      name: "work"
+      template:
+        metadata:
+          name: test
+        spec:
+          containers:
+            - image: alpine
+              imagePullPolicy: IfNotPresent
+              name: alpine
+              command: ["/bin/sh", "-c", "echo Hello Kubernetes! && sleep 100000"]
+              resources:
+                requests:
+                  cpu: "10m"
+          restartPolicy: OnFailure
