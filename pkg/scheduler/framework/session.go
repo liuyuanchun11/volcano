@@ -57,6 +57,7 @@ type Session struct {
 	podGroupStatus map[api.JobID]scheduling.PodGroupStatus
 
 	Jobs           map[api.JobID]*api.JobInfo
+	JobGroups      map[api.JobGroupID]*api.JobGroupInfo
 	Nodes          map[string]*api.NodeInfo
 	CSINodesStatus map[string]*api.CSINodeStatusInfo
 	RevocableNodes map[string]*api.NodeInfo
@@ -90,17 +91,19 @@ type Session struct {
 	overusedFns       map[string]api.ValidateFn
 	// preemptiveFns means whether current queue can reclaim from other queue,
 	// while reclaimableFns means whether current queue's resources can be reclaimed.
-	preemptiveFns     map[string]api.ValidateFn
-	allocatableFns    map[string]api.AllocatableFn
-	jobReadyFns       map[string]api.ValidateFn
-	jobPipelinedFns   map[string]api.VoteFn
-	jobValidFns       map[string]api.ValidateExFn
-	jobEnqueueableFns map[string]api.VoteFn
-	jobEnqueuedFns    map[string]api.JobEnqueuedFn
-	targetJobFns      map[string]api.TargetJobFn
-	reservedNodesFns  map[string]api.ReservedNodesFn
-	victimTasksFns    map[string][]api.VictimTasksFn
-	jobStarvingFns    map[string]api.ValidateFn
+	preemptiveFns         map[string]api.ValidateFn
+	allocatableFns        map[string]api.AllocatableFn
+	jobReadyFns           map[string]api.ValidateFn
+	jobPipelinedFns       map[string]api.VoteFn
+	jobValidFns           map[string]api.ValidateExFn
+	jobEnqueueableFns     map[string]api.VoteFn
+	jobEnqueuedFns        map[string]api.JobEnqueuedFn
+	targetJobFns          map[string]api.TargetJobFn
+	reservedNodesFns      map[string]api.ReservedNodesFn
+	victimTasksFns        map[string][]api.VictimTasksFn
+	jobStarvingFns        map[string]api.ValidateFn
+	jobGroupReadyFns      map[string]api.ValidateFn
+	nodeGroupPredicateFns map[string]api.NodeGroupPredicateFn
 }
 
 func openSession(cache cache.Cache) *Session {
@@ -116,37 +119,40 @@ func openSession(cache cache.Cache) *Session {
 		podGroupStatus: map[api.JobID]scheduling.PodGroupStatus{},
 
 		Jobs:           map[api.JobID]*api.JobInfo{},
+		JobGroups:      map[api.JobGroupID]*api.JobGroupInfo{},
 		Nodes:          map[string]*api.NodeInfo{},
 		CSINodesStatus: map[string]*api.CSINodeStatusInfo{},
 		RevocableNodes: map[string]*api.NodeInfo{},
 		Queues:         map[api.QueueID]*api.QueueInfo{},
 
-		plugins:           map[string]Plugin{},
-		jobOrderFns:       map[string]api.CompareFn{},
-		queueOrderFns:     map[string]api.CompareFn{},
-		taskOrderFns:      map[string]api.CompareFn{},
-		clusterOrderFns:   map[string]api.CompareFn{},
-		predicateFns:      map[string]api.PredicateFn{},
-		prePredicateFns:   map[string]api.PrePredicateFn{},
-		bestNodeFns:       map[string]api.BestNodeFn{},
-		nodeOrderFns:      map[string]api.NodeOrderFn{},
-		batchNodeOrderFns: map[string]api.BatchNodeOrderFn{},
-		nodeMapFns:        map[string]api.NodeMapFn{},
-		nodeReduceFns:     map[string]api.NodeReduceFn{},
-		preemptableFns:    map[string]api.EvictableFn{},
-		reclaimableFns:    map[string]api.EvictableFn{},
-		overusedFns:       map[string]api.ValidateFn{},
-		preemptiveFns:     map[string]api.ValidateFn{},
-		allocatableFns:    map[string]api.AllocatableFn{},
-		jobReadyFns:       map[string]api.ValidateFn{},
-		jobPipelinedFns:   map[string]api.VoteFn{},
-		jobValidFns:       map[string]api.ValidateExFn{},
-		jobEnqueueableFns: map[string]api.VoteFn{},
-		jobEnqueuedFns:    map[string]api.JobEnqueuedFn{},
-		targetJobFns:      map[string]api.TargetJobFn{},
-		reservedNodesFns:  map[string]api.ReservedNodesFn{},
-		victimTasksFns:    map[string][]api.VictimTasksFn{},
-		jobStarvingFns:    map[string]api.ValidateFn{},
+		plugins:               map[string]Plugin{},
+		jobOrderFns:           map[string]api.CompareFn{},
+		queueOrderFns:         map[string]api.CompareFn{},
+		taskOrderFns:          map[string]api.CompareFn{},
+		clusterOrderFns:       map[string]api.CompareFn{},
+		predicateFns:          map[string]api.PredicateFn{},
+		prePredicateFns:       map[string]api.PrePredicateFn{},
+		bestNodeFns:           map[string]api.BestNodeFn{},
+		nodeOrderFns:          map[string]api.NodeOrderFn{},
+		batchNodeOrderFns:     map[string]api.BatchNodeOrderFn{},
+		nodeMapFns:            map[string]api.NodeMapFn{},
+		nodeReduceFns:         map[string]api.NodeReduceFn{},
+		preemptableFns:        map[string]api.EvictableFn{},
+		reclaimableFns:        map[string]api.EvictableFn{},
+		overusedFns:           map[string]api.ValidateFn{},
+		preemptiveFns:         map[string]api.ValidateFn{},
+		allocatableFns:        map[string]api.AllocatableFn{},
+		jobReadyFns:           map[string]api.ValidateFn{},
+		jobPipelinedFns:       map[string]api.VoteFn{},
+		jobValidFns:           map[string]api.ValidateExFn{},
+		jobEnqueueableFns:     map[string]api.VoteFn{},
+		jobEnqueuedFns:        map[string]api.JobEnqueuedFn{},
+		targetJobFns:          map[string]api.TargetJobFn{},
+		reservedNodesFns:      map[string]api.ReservedNodesFn{},
+		victimTasksFns:        map[string][]api.VictimTasksFn{},
+		jobStarvingFns:        map[string]api.ValidateFn{},
+		jobGroupReadyFns:      map[string]api.ValidateFn{},
+		nodeGroupPredicateFns: map[string]api.NodeGroupPredicateFn{},
 	}
 
 	snapshot := cache.Snapshot()
@@ -176,6 +182,14 @@ func openSession(cache cache.Cache) *Session {
 			delete(ssn.Jobs, job.UID)
 		}
 	}
+
+	ssn.JobGroups = snapshot.JobGroups
+	for _, jobGroup := range ssn.JobGroups {
+		if !jobGroup.IsValid() {
+			delete(ssn.JobGroups, jobGroup.UID)
+		}
+	}
+
 	ssn.NodeList = util.GetNodeList(snapshot.Nodes, snapshot.NodeList)
 	ssn.Nodes = snapshot.Nodes
 	ssn.CSINodesStatus = snapshot.CSINodesStatus
@@ -187,8 +201,8 @@ func openSession(cache cache.Cache) *Session {
 		ssn.TotalResource.Add(n.Allocatable)
 	}
 
-	klog.V(3).Infof("Open Session %v with <%d> Job and <%d> Queues",
-		ssn.UID, len(ssn.Jobs), len(ssn.Queues))
+	klog.V(3).Infof("Open Session %v with <%d> JobGroup, <%d> Job and <%d> Queues",
+		ssn.UID, len(ssn.JobGroups), len(ssn.Jobs), len(ssn.Queues))
 
 	return ssn
 }
@@ -555,4 +569,44 @@ func (ssn Session) String() string {
 	}
 
 	return msg
+}
+
+// JobGroupOrderFn invoke jobGroupOrder function of the plugins
+func (ssn *Session) JobGroupOrderFn(l, r interface{}) bool {
+	leftJobGroup, ok := l.(*api.JobGroupInfo)
+	if !ok {
+		return true
+	}
+	rightJobGroup, ok := r.(*api.JobGroupInfo)
+	if !ok {
+		return false
+	}
+
+	// all jobs in jobGroup have the same priority and queue, compare job instead
+	leftJobId, err := leftJobGroup.GetAnyOneJobId()
+	if err != nil {
+		return true
+	}
+	rightJobId, err := rightJobGroup.GetAnyOneJobId()
+	if err != nil {
+		return false
+	}
+
+	leftJob := ssn.Jobs[leftJobId]
+	rightJob := ssn.Jobs[rightJobId]
+	return ssn.JobOrderFn(leftJob, rightJob)
+}
+
+func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, error) {
+	jobId, err := jobGroup.GetAnyOneJobId()
+	if err != nil {
+		return "", fmt.Errorf("failed to get job id from jobGroup")
+	}
+
+	job, ok := ssn.Jobs[jobId]
+	if !ok {
+		return "", fmt.Errorf("failed to find job %s", jobId)
+	}
+
+	return job.Queue, nil
 }

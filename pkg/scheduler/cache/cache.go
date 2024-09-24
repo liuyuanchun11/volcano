@@ -58,6 +58,7 @@ import (
 	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
 	"volcano.sh/apis/pkg/client/clientset/versioned/scheme"
 	vcinformer "volcano.sh/apis/pkg/client/informers/externalversions"
+	batchinformer "volcano.sh/apis/pkg/client/informers/externalversions/batch/v1alpha1"
 	cpuinformerv1 "volcano.sh/apis/pkg/client/informers/externalversions/nodeinfo/v1alpha1"
 	vcinformerv1 "volcano.sh/apis/pkg/client/informers/externalversions/scheduling/v1beta1"
 
@@ -117,6 +118,7 @@ type SchedulerCache struct {
 	csiDriverInformer          storagev1.CSIDriverInformer
 	csiStorageCapacityInformer storagev1beta1.CSIStorageCapacityInformer
 	cpuInformer                cpuinformerv1.NumatopologyInformer
+	hyperJobInformer           batchinformer.HyperJobInformer
 
 	Binder         Binder
 	Evictor        Evictor
@@ -127,6 +129,7 @@ type SchedulerCache struct {
 	Recorder record.EventRecorder
 
 	Jobs                 map[schedulingapi.JobID]*schedulingapi.JobInfo
+	JobGroups            map[schedulingapi.JobGroupID]*schedulingapi.JobGroupInfo
 	Nodes                map[string]*schedulingapi.NodeInfo
 	Queues               map[schedulingapi.QueueID]*schedulingapi.QueueInfo
 	PriorityClasses      map[string]*schedulingv1.PriorityClass
@@ -137,9 +140,10 @@ type SchedulerCache struct {
 
 	NamespaceCollection map[string]*schedulingapi.NamespaceCollection
 
-	errTasks    workqueue.RateLimitingInterface
-	nodeQueue   workqueue.RateLimitingInterface
-	DeletedJobs workqueue.RateLimitingInterface
+	errTasks         workqueue.RateLimitingInterface
+	nodeQueue        workqueue.RateLimitingInterface
+	DeletedJobs      workqueue.RateLimitingInterface
+	DeletedJobGroups workqueue.RateLimitingInterface
 
 	informerFactory   informers.SharedInformerFactory
 	vcInformerFactory vcinformer.SharedInformerFactory
@@ -529,12 +533,14 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 
 	sc := &SchedulerCache{
 		Jobs:                make(map[schedulingapi.JobID]*schedulingapi.JobInfo),
+		JobGroups:           make(map[schedulingapi.JobGroupID]*schedulingapi.JobGroupInfo),
 		Nodes:               make(map[string]*schedulingapi.NodeInfo),
 		Queues:              make(map[schedulingapi.QueueID]*schedulingapi.QueueInfo),
 		PriorityClasses:     make(map[string]*schedulingv1.PriorityClass),
 		errTasks:            workqueue.NewRateLimitingQueue(errTaskRateLimiter),
 		nodeQueue:           workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		DeletedJobs:         workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		DeletedJobGroups:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		kubeClient:          kubeClient,
 		vcClient:            vcClient,
 		restConfig:          config,
@@ -758,6 +764,13 @@ func (sc *SchedulerCache) addEventHandler() {
 			},
 		})
 
+	sc.hyperJobInformer = vcinformers.Batch().V1alpha1().HyperJobs()
+	sc.hyperJobInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    sc.AddHyperJobV1alpha1,
+		UpdateFunc: sc.UpdateHyperJobV1alpha1,
+		DeleteFunc: sc.DeleteHyperJobV1alpha1,
+	})
+
 	// create informer(v1beta1) for Queue information
 	sc.queueInformerV1beta1 = vcinformers.Scheduling().V1beta1().Queues()
 	sc.queueInformerV1beta1.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -790,6 +803,8 @@ func (sc *SchedulerCache) Run(stopCh <-chan struct{}) {
 
 	// Cleanup jobs.
 	go wait.Until(sc.processCleanupJob, 0, stopCh)
+	// Cleanup jobGroups.
+	go wait.Until(sc.processCleanupJobGroupInfo, 0, stopCh)
 
 	go wait.Until(sc.processBindTask, time.Millisecond*20, stopCh)
 
@@ -1302,8 +1317,10 @@ func (sc *SchedulerCache) Snapshot() *schedulingapi.ClusterInfo {
 	defer sc.Mutex.Unlock()
 
 	snapshot := &schedulingapi.ClusterInfo{
-		Nodes:          make(map[string]*schedulingapi.NodeInfo),
-		Jobs:           make(map[schedulingapi.JobID]*schedulingapi.JobInfo),
+		Nodes:     make(map[string]*schedulingapi.NodeInfo),
+		Jobs:      make(map[schedulingapi.JobID]*schedulingapi.JobInfo),
+		JobGroups: make(map[schedulingapi.JobGroupID]*schedulingapi.JobGroupInfo),
+
 		Queues:         make(map[schedulingapi.QueueID]*schedulingapi.QueueInfo),
 		NamespaceInfo:  make(map[schedulingapi.NamespaceName]*schedulingapi.NamespaceInfo),
 		RevocableNodes: make(map[string]*schedulingapi.NodeInfo),
@@ -1385,8 +1402,12 @@ func (sc *SchedulerCache) Snapshot() *schedulingapi.ClusterInfo {
 	}
 	wg.Wait()
 
-	klog.V(3).Infof("There are <%d> Jobs, <%d> Queues and <%d> Nodes in total for scheduling.",
-		len(snapshot.Jobs), len(snapshot.Queues), len(snapshot.Nodes))
+	for _, jobGroup := range sc.JobGroups {
+		snapshot.JobGroups[jobGroup.UID] = jobGroup.Clone()
+	}
+
+	klog.V(3).Infof("There are <%d> JobGroups, <%d> Jobs, <%d> Queues and <%d> Nodes in total for scheduling.",
+		len(snapshot.JobGroups), len(snapshot.Jobs), len(snapshot.Queues), len(snapshot.Nodes))
 
 	return snapshot
 }
@@ -1416,6 +1437,13 @@ func (sc *SchedulerCache) String() string {
 		str += "Jobs:\n"
 		for _, job := range sc.Jobs {
 			str += fmt.Sprintf("\t %s\n", job)
+		}
+	}
+
+	if len(sc.JobGroups) != 0 {
+		str += "jobGroups:\n"
+		for _, jobGroup := range sc.JobGroups {
+			str += fmt.Sprintf("\t %s\n", jobGroup.Name)
 		}
 	}
 
@@ -1568,5 +1596,50 @@ func (sc *SchedulerCache) createImageStateSummary(state *imageState) *framework.
 	return &framework.ImageStateSummary{
 		Size:     state.size,
 		NumNodes: len(state.nodes),
+	}
+}
+
+func (sc *SchedulerCache) deleteJobGroupInfo(jobGroupInfo *schedulingapi.JobGroupInfo) {
+	klog.V(3).Infof("Try to delete jobGroupInfo %s", jobGroupInfo.UID)
+
+	sc.DeletedJobGroups.Add(jobGroupInfo)
+}
+
+func (sc *SchedulerCache) retryDeleteJobGroupInfo(jobGroupInfo *schedulingapi.JobGroupInfo) {
+	klog.V(3).Infof("Retry to delete jobGroupInfo %s", jobGroupInfo.UID)
+
+	sc.DeletedJobGroups.AddRateLimited(jobGroupInfo)
+}
+
+func (sc *SchedulerCache) processCleanupJobGroupInfo() {
+	obj, shutdown := sc.DeletedJobGroups.Get()
+	if shutdown {
+		return
+	}
+
+	defer sc.DeletedJobGroups.Done(obj)
+
+	jobGroupInfo, found := obj.(*schedulingapi.JobGroupInfo)
+	if !found {
+		klog.Errorf("Failed to convert <%v> to *jobGroupInfo", obj)
+		return
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if jobGroupInfo.IsTerminated() {
+		_, found := sc.JobGroups[jobGroupInfo.UID]
+		if !found {
+			klog.V(3).Infof("Failed to find jobGroupInfo %s, ignore it", jobGroupInfo.UID)
+			sc.DeletedJobGroups.Forget(obj)
+			return
+		}
+
+		delete(sc.JobGroups, jobGroupInfo.UID)
+		sc.DeletedJobGroups.Forget(obj)
+		klog.V(3).Infof("Delete jobGroupInfo %s", jobGroupInfo.UID)
+	} else {
+		sc.retryDeleteJobGroupInfo(jobGroupInfo)
 	}
 }

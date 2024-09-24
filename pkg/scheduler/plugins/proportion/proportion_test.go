@@ -241,6 +241,7 @@ func TestProportion(t *testing.T) {
 		schedulerCache := &cache.SchedulerCache{
 			Nodes:           make(map[string]*api.NodeInfo),
 			Jobs:            make(map[api.JobID]*api.JobInfo),
+			JobGroups:       make(map[api.JobGroupID]*api.JobGroupInfo),
 			PriorityClasses: make(map[string]*schedulingv1.PriorityClass),
 			Queues:          make(map[api.QueueID]*api.QueueInfo),
 			Binder:          binder,
@@ -250,6 +251,7 @@ func TestProportion(t *testing.T) {
 		}
 		// deletedJobs to DeletedJobs
 		schedulerCache.DeletedJobs = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		schedulerCache.DeletedJobGroups = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 		for _, node := range test.nodes {
 			schedulerCache.AddOrUpdateNode(node)

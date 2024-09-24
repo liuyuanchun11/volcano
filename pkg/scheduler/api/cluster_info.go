@@ -23,6 +23,7 @@ import (
 // ClusterInfo is a snapshot of cluster by cache.
 type ClusterInfo struct {
 	Jobs           map[JobID]*JobInfo
+	JobGroups      map[JobGroupID]*JobGroupInfo
 	Nodes          map[string]*NodeInfo
 	Queues         map[QueueID]*QueueInfo
 	NamespaceInfo  map[NamespaceName]*NamespaceInfo
@@ -58,6 +59,18 @@ func (ci ClusterInfo) String() string {
 			for _, task := range job.Tasks {
 				str += fmt.Sprintf("\t\t %d: %v\n", i, task)
 				i++
+			}
+		}
+	}
+
+	if len(ci.JobGroups) != 0 {
+		str += "HyperJobs:\n"
+		for _, jobGroup := range ci.JobGroups {
+			str += fmt.Sprintf("\t jobGroup(%s) name(%s) replicas(%v) minAvailable(%v)\n",
+				jobGroup.UID, jobGroup.Name, jobGroup.Replicas, jobGroup.MinAvailable)
+
+			for jobId := range jobGroup.Jobs {
+				str += fmt.Sprintf("\t jobId(%s)\n", jobId)
 			}
 		}
 	}
