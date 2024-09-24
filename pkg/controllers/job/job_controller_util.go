@@ -130,6 +130,19 @@ func createJobPod(job *batch.Job, template *v1.PodTemplateSpec, topologyPolicy b
 		} else if value, found := job.Annotations[schedulingv2.JDBMaxUnavailable]; found {
 			pod.Annotations[schedulingv2.JDBMaxUnavailable] = value
 		}
+
+		if value, found := job.Annotations[batch.HyperJobNameKey]; found {
+			pod.Annotations[batch.HyperJobNameKey] = value
+		}
+		if value, found := job.Annotations[batch.HyperJobNamespaceKey]; found {
+			pod.Annotations[batch.HyperJobNamespaceKey] = value
+		}
+		if value, found := job.Annotations[batch.HyperJobReplicatedJobNameKey]; found {
+			pod.Annotations[batch.HyperJobReplicatedJobNameKey] = value
+		}
+		if value, found := job.Annotations[batch.HyperJobReplicatedJobIndexKey]; found {
+			pod.Annotations[batch.HyperJobReplicatedJobIndexKey] = value
+		}
 	}
 
 	if len(pod.Labels) == 0 {
@@ -149,11 +162,29 @@ func createJobPod(job *batch.Job, template *v1.PodTemplateSpec, topologyPolicy b
 		if value, found := job.Labels[schedulingv2.CooldownTime]; found {
 			pod.Labels[schedulingv2.CooldownTime] = value
 		}
+		if value, found := job.Labels[batch.HyperJobNameKey]; found {
+			pod.Labels[batch.HyperJobNameKey] = value
+		}
+		if value, found := job.Labels[batch.HyperJobNamespaceKey]; found {
+			pod.Labels[batch.HyperJobNamespaceKey] = value
+		}
+		if value, found := job.Labels[batch.HyperJobReplicatedJobNameKey]; found {
+			pod.Labels[batch.HyperJobReplicatedJobNameKey] = value
+		}
+		if value, found := job.Labels[batch.HyperJobReplicatedJobIndexKey]; found {
+			pod.Labels[batch.HyperJobReplicatedJobIndexKey] = value
+		}
 	}
 
 	if jobForwarding {
 		pod.Annotations[batch.JobForwardingKey] = "true"
 		pod.Labels[batch.JobForwardingKey] = "true"
+	}
+
+	hyperJobName, exist := pod.Annotations[batch.HyperJobNameKey]
+	if exist {
+		pod.Spec.Hostname = pod.Name
+		pod.Spec.Subdomain = hyperJobName
 	}
 
 	return pod
