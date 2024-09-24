@@ -191,12 +191,14 @@ func (hjr *HyperJobReconciler) getVcJobs(ctx context.Context, hyperJob *vcbatch.
 		switch job.Status.State.Phase {
 		case vcbatch.Completed:
 			ownedJobs.succeeded = append(ownedJobs.succeeded, &vcJobList.Items[i])
-		case vcbatch.Failed, vcbatch.Terminated, vcbatch.Aborted:
+		case vcbatch.Failed, vcbatch.Terminating, vcbatch.Terminated, vcbatch.Aborting, vcbatch.Aborted:
 			ownedJobs.failed = append(ownedJobs.failed, &vcJobList.Items[i])
 		case vcbatch.Pending:
 			ownedJobs.pending = append(ownedJobs.pending, &vcJobList.Items[i])
-		default:
+		case vcbatch.Running, vcbatch.Completing, vcbatch.Restarting:
 			ownedJobs.active = append(ownedJobs.active, &vcJobList.Items[i])
+		default:
+			klog.V(4).Infof("Job %s phase %s is unexpected", job.Name, job.Status.State.Phase)
 		}
 	}
 	return &ownedJobs, nil
@@ -220,11 +222,11 @@ func (hjr *HyperJobReconciler) calculateVcJobStatus(hyperJob *vcbatch.HyperJob, 
 			continue
 		}
 
-		if job.Status.Succeeded >= job.Status.MinAvailable {
+		if job.Status.MinAvailable > 0 && job.Status.Succeeded >= job.Status.MinAvailable {
 			jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusReady]++
+		} else {
+			jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusActive]++
 		}
-
-		jobsStatus[job.Labels[vcbatch.HyperJobReplicatedJobNameKey]][JobStatusActive]++
 	}
 
 	for _, job := range jobs.pending {
@@ -435,6 +437,8 @@ func (hjr *HyperJobReconciler) updateVcJobsStatus(ctx context.Context, hyperJob 
 		return nil
 	}
 	hyperJob.Status.ReplicatedJobsStatus = replicatedJobStatus
+	klog.V(4).Infof("Update hyperJob %v replicatedJob status: %v",
+		klog.KObj(hyperJob), hyperJob.Status.ReplicatedJobsStatus)
 	return hjr.Status().Update(ctx, hyperJob)
 }
 

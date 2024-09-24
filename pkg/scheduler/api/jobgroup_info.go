@@ -111,7 +111,7 @@ func (jgi *JobGroupInfo) SetJobGroup(jobGroup *JobGroupInfo) {
 func (jgi *JobGroupInfo) UnsetOwner() {
 	jgi.Owner.Type = ""
 	jgi.Owner.HyperJob = nil
-	klog.V(3).Infof("Unset jobGroup owner %s", jgi.UID)
+	klog.V(4).Infof("Unset jobGroup owner %s", jgi.UID)
 }
 
 func (jgi *JobGroupInfo) Clone() *JobGroupInfo {
@@ -159,8 +159,11 @@ func (jgi *JobGroupInfo) AddJobInfo(jobInfo *JobInfo) error {
 	if _, ok := jgi.Jobs[rjName]; !ok {
 		jgi.Jobs[rjName] = make(map[JobID]struct{})
 	}
-	jgi.Jobs[rjName][jobInfo.UID] = struct{}{}
-	klog.V(3).Infof("Add jobInfo %s(rj name %s) to jobGroupInfo %s", jobInfo.UID, rjName, jgi.UID)
+
+	if _, ok := jgi.Jobs[rjName][jobInfo.UID]; !ok {
+		jgi.Jobs[rjName][jobInfo.UID] = struct{}{}
+		klog.V(3).Infof("Add jobInfo %s(rj name %s) to jobGroupInfo %s", jobInfo.UID, rjName, jgi.UID)
+	}
 
 	return nil
 }
