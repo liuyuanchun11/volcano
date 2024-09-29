@@ -14,8 +14,7 @@ import (
 )
 
 type PredicateHelper interface {
-	PredicateNodes(task *api.TaskInfo, nodes []*api.NodeInfo, fn api.PredicateFn,
-		nodeGroupPredicateFn api.NodeGroupPredicateFn, enableErrorCache bool) ([]*api.NodeInfo, *api.FitErrors)
+	PredicateNodes(task *api.TaskInfo, nodes []*api.NodeInfo, fn api.PredicateFn, enableErrorCache bool) ([]*api.NodeInfo, *api.FitErrors)
 }
 
 type predicateHelper struct {
@@ -23,8 +22,7 @@ type predicateHelper struct {
 }
 
 // PredicateNodes returns the specified number of nodes that fit a task
-func (ph *predicateHelper) PredicateNodes(task *api.TaskInfo, nodes []*api.NodeInfo,
-	fn api.PredicateFn, nodeGroupPredicateFn api.NodeGroupPredicateFn, enableErrorCache bool) ([]*api.NodeInfo, *api.FitErrors) {
+func (ph *predicateHelper) PredicateNodes(task *api.TaskInfo, nodes []*api.NodeInfo, fn api.PredicateFn, enableErrorCache bool) ([]*api.NodeInfo, *api.FitErrors) {
 	var errorLock sync.RWMutex
 	fe := api.NewFitErrors()
 
@@ -99,24 +97,6 @@ func (ph *predicateHelper) PredicateNodes(task *api.TaskInfo, nodes []*api.NodeI
 	//processedNodes := int(numFoundNodes) + len(filteredNodesStatuses) + len(failedPredicateMap)
 	lastProcessedNodeIndex = (lastProcessedNodeIndex + int(processedNodes)) % allNodes
 	predicateNodes = predicateNodes[:numFoundNodes]
-
-	return ph.predicateNodeGroups(task, predicateNodes, nodeGroupPredicateFn, nodeErrorCache, fe)
-}
-
-func (ph *predicateHelper) predicateNodeGroups(task *api.TaskInfo, nodes []*api.NodeInfo,
-	nodeGroupPredicateFn api.NodeGroupPredicateFn, nodeErrorCache map[string]error,
-	fe *api.FitErrors) ([]*api.NodeInfo, *api.FitErrors) {
-	taskGroupId := taskGroupID(task)
-
-	predicateNodes, err := nodeGroupPredicateFn(task, nodes)
-	if err != nil {
-		for _, ni := range nodes {
-			nodeErrorCache[ni.Name] = err
-			ph.taskPredicateErrorCache[taskGroupId] = nodeErrorCache
-			fe.SetNodeError(ni.Name, err)
-		}
-	}
-
 	return predicateNodes, fe
 }
 

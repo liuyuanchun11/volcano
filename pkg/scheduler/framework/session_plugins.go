@@ -155,9 +155,9 @@ func (ssn *Session) AddJobGroupReadyFn(name string, fn api.ValidateFn) {
 	ssn.jobGroupReadyFns[name] = fn
 }
 
-// AddNodeGroupPredicateFn add nodeGroup predicate function
-func (ssn *Session) AddNodeGroupPredicateFn(name string, fn api.NodeGroupPredicateFn) {
-	ssn.nodeGroupPredicateFns[name] = fn
+// AddNodeGroupOrderFn add nodeGroup order function
+func (ssn *Session) AddNodeGroupOrderFn(name string, fn api.NodeGroupOrderFn) {
+	ssn.nodeGroupOrderFns[name] = fn
 }
 
 // Reclaimable invoke reclaimable function of the plugins
@@ -835,20 +835,22 @@ func (ssn *Session) JobGroupReady(obj interface{}) bool {
 	return true
 }
 
-func (ssn *Session) NodeGroupPredicate(task *api.TaskInfo, predicateNode []*api.NodeInfo) ([]*api.NodeInfo, error) {
-	filteredNodes := predicateNode
-	var err error
+func (ssn *Session) NodeGroupOrder(jobGroup *api.JobGroupInfo, jobInfo *api.JobInfo,
+	predicateNodeGroup map[string][]*api.NodeInfo) (map[string]map[string]float64, error) {
+	nodeGroupScores := make(map[string]map[string]float64)
 	for _, tier := range ssn.Tiers {
 		for _, plugin := range tier.Plugins {
-			pfn, found := ssn.nodeGroupPredicateFns[plugin.Name]
+			pfn, found := ssn.nodeGroupOrderFns[plugin.Name]
 			if !found {
 				continue
 			}
-			filteredNodes, err = pfn(task, filteredNodes)
+			scoreTmp, err := pfn(jobGroup, jobInfo, predicateNodeGroup)
 			if err != nil {
-				return filteredNodes, err
+				return nodeGroupScores, err
 			}
+
+			nodeGroupScores[plugin.Name] = scoreTmp
 		}
 	}
-	return filteredNodes, nil
+	return nodeGroupScores, nil
 }

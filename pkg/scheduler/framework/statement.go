@@ -398,3 +398,96 @@ func (s *Statement) Commit() {
 		}
 	}
 }
+
+func (s *Statement) SaveOperations() *Statement {
+	stmtTmp := &Statement{}
+
+	for _, op := range s.operations {
+		stmtTmp.operations = append(stmtTmp.operations, operation{
+			name:   op.name,
+			task:   op.task.Clone(),
+			reason: op.reason,
+		})
+	}
+
+	taskBind := make(map[string]string)
+	for _, op := range stmtTmp.operations {
+		if op.name != Allocate {
+			continue
+		}
+		taskBind[op.task.Name] = op.task.NodeName
+	}
+	if len(taskBind) != 0 {
+		klog.V(5).Infof("Saved statement: %v", taskBind)
+	}
+	return stmtTmp
+}
+
+func (s *Statement) DiscardJob(job *api.JobInfo) {
+	klog.V(3).Infof("Discarding job %s operations ...", job.UID)
+	for i := len(s.operations) - 1; i >= 0; i-- {
+		op := s.operations[i]
+		if op.task.Job != job.UID {
+			continue
+		}
+		op.task.GenerateLastTxContext()
+		switch op.name {
+		case Evict:
+			err := s.unevict(op.task)
+			if err != nil {
+				klog.Errorf("Failed to unevict task: %s", err.Error())
+			}
+		case Pipeline:
+			err := s.UnPipeline(op.task)
+			if err != nil {
+				klog.Errorf("Failed to unpipeline task: %s", err.Error())
+			}
+		case Allocate:
+			err := s.unallocate(op.task)
+			if err != nil {
+				klog.Errorf("Failed to unallocate task: %s", err.Error())
+			}
+		}
+	}
+}
+
+func (s *Statement) RecoverOperations(stmt *Statement) error {
+	taskBind := make(map[string]string)
+	for _, op := range stmt.operations {
+		if op.name != Allocate {
+			continue
+		}
+		taskBind[op.task.Name] = op.task.NodeName
+	}
+	if len(taskBind) != 0 {
+		klog.V(5).Infof("Recover statement: %v", taskBind)
+	}
+	for _, op := range stmt.operations {
+		switch op.name {
+		case Evict:
+			err := s.Evict(op.task, op.reason)
+			if err != nil {
+				klog.Errorf("Failed to evict task: %s", err.Error())
+				return err
+			}
+		case Pipeline:
+			err := s.Pipeline(op.task, op.task.NodeName)
+			if err != nil {
+				klog.Errorf("Failed to evict task: %s", err.Error())
+				return err
+			}
+		case Allocate:
+			node := s.ssn.Nodes[op.task.NodeName]
+			err := s.Allocate(op.task, node)
+			if err != nil {
+				if e := s.unallocate(op.task); e != nil {
+					klog.Errorf("Failed to unallocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, e)
+				}
+				klog.Errorf("Failed to allocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}

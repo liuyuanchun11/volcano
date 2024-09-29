@@ -193,7 +193,7 @@ func (alloc *Action) allocateResourcesForTasks(tasks *util.PriorityQueue, job *a
 			break
 		}
 
-		predicateNodes, fitErrors := ph.PredicateNodes(task, allNodes, alloc.predicate, ssn.NodeGroupPredicate, true)
+		predicateNodes, fitErrors := ph.PredicateNodes(task, allNodes, alloc.predicate, true)
 		if len(predicateNodes) == 0 {
 			job.NodesFitErrors[task.UID] = fitErrors
 			break
