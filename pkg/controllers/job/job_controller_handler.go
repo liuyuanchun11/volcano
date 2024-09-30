@@ -251,6 +251,8 @@ func (cc *jobcontroller) updatePod(oldObj, newObj interface{}) {
 	event := bus.OutOfSyncEvent
 	var exitCode int32
 
+	klog.V(2).Infof("[test] Update pod %s new phase %s, old phase %s",
+		newPod.Name, newPod.Status.Phase, oldPod.Status.Phase)
 	switch newPod.Status.Phase {
 	case v1.PodFailed:
 		if oldPod.Status.Phase != v1.PodFailed {
@@ -260,6 +262,7 @@ func (cc *jobcontroller) updatePod(oldObj, newObj interface{}) {
 			if len(newPod.Status.ContainerStatuses) > 0 && newPod.Status.ContainerStatuses[0].State.Terminated != nil {
 				exitCode = newPod.Status.ContainerStatuses[0].State.Terminated.ExitCode
 			}
+			klog.V(2).Infof("[test] pod event %s, exitCode %d", event, exitCode)
 		}
 	case v1.PodSucceeded:
 		if oldPod.Status.Phase != v1.PodSucceeded &&
@@ -269,6 +272,7 @@ func (cc *jobcontroller) updatePod(oldObj, newObj interface{}) {
 	case v1.PodPending, v1.PodRunning:
 		if cc.cache.TaskFailed(jobcache.JobKeyByName(newPod.Namespace, jobName), taskName) {
 			event = bus.TaskFailedEvent
+			klog.V(2).Infof("[test] pod event %s", event)
 		}
 	}
 

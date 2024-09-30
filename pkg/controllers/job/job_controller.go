@@ -342,7 +342,7 @@ func (cc *jobcontroller) processNextReq(count uint32) bool {
 	}
 
 	action := applyPolicies(jobInfo.Job, &req)
-	klog.V(3).Infof("Execute <%v> on Job <%s/%s> in <%s> by <%T>.",
+	klog.V(3).Infof("[test] Execute <%v> on Job <%s/%s> in <%s> by <%T>.",
 		action, req.Namespace, req.JobName, jobInfo.Job.Status.State.Phase, st)
 
 	if action != busv1alpha1.SyncJobAction {
