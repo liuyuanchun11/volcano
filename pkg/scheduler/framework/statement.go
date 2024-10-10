@@ -398,3 +398,105 @@ func (s *Statement) Commit() {
 		}
 	}
 }
+
+func (s *Statement) SaveOperations() *Statement {
+	s.outputOperations("Save operations: ", 4)
+
+	stmtTmp := &Statement{}
+	for _, op := range s.operations {
+		stmtTmp.operations = append(stmtTmp.operations, operation{
+			name:   op.name,
+			task:   op.task.Clone(),
+			reason: op.reason,
+		})
+	}
+
+	return stmtTmp
+}
+
+func (s *Statement) DiscardJob(job *api.JobInfo) {
+	var buffer string
+
+	for i := len(s.operations) - 1; i >= 0; i-- {
+		op := s.operations[i]
+		if op.task.Job != job.UID {
+			continue
+		}
+		op.task.GenerateLastTxContext()
+		switch op.name {
+		case Evict:
+			err := s.unevict(op.task)
+			if err != nil {
+				klog.Errorf("Failed to unevict task: %s", err.Error())
+			}
+			buffer += fmt.Sprintf("unevict task %s unevict from node %s ", op.task.Name, op.task.NodeName)
+		case Pipeline:
+			err := s.UnPipeline(op.task)
+			if err != nil {
+				klog.Errorf("Failed to  task: %s", err.Error())
+			}
+			buffer += fmt.Sprintf("unpipeline task %s from node %s ", op.task.Name, op.task.NodeName)
+		case Allocate:
+			err := s.unallocate(op.task)
+			if err != nil {
+				klog.Errorf("Failed to unallocate task: %s", err.Error())
+			}
+			buffer += fmt.Sprintf("unallocate task %s from node %s ", op.task.Name, op.task.NodeName)
+		}
+	}
+
+	klog.V(3).Infof("Discarding job %s operations: %s", job.UID, buffer)
+}
+
+func (s *Statement) RecoverOperations(stmt *Statement) error {
+	s.outputOperations("Recover operations: ", 4)
+	for _, op := range stmt.operations {
+		switch op.name {
+		case Evict:
+			err := s.Evict(op.task, op.reason)
+			if err != nil {
+				klog.Errorf("Failed to evict task: %s", err.Error())
+				return err
+			}
+		case Pipeline:
+			err := s.Pipeline(op.task, op.task.NodeName, false)
+			if err != nil {
+				klog.Errorf("Failed to evict task: %s", err.Error())
+				return err
+			}
+		case Allocate:
+			node := s.ssn.Nodes[op.task.NodeName]
+			err := s.Allocate(op.task, node)
+			if err != nil {
+				if e := s.unallocate(op.task); e != nil {
+					klog.Errorf("Failed to unallocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, e)
+				}
+				klog.Errorf("Failed to allocate task <%v/%v>: %v.", op.task.Namespace, op.task.Name, err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Statement) outputOperations(msg string, level klog.Level) {
+	if !klog.V(level).Enabled() {
+		return
+	}
+
+	var buffer string
+	for _, op := range s.operations {
+		switch op.name {
+		case Evict:
+			buffer += fmt.Sprintf("task %s evict from node %s ", op.task.Name, op.task.NodeName)
+		case Pipeline:
+			buffer += fmt.Sprintf("task %s pipeline to node %s ", op.task.Name, op.task.NodeName)
+		case Allocate:
+			buffer += fmt.Sprintf("task %s allocate to node %s ", op.task.Name, op.task.NodeName)
+		}
+
+	}
+
+	klog.V(level).Info(msg, buffer)
+}

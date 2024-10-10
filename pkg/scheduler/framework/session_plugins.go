@@ -160,6 +160,11 @@ func (ssn *Session) AddNodeGroupPredicateFn(name string, fn api.NodeGroupPredica
 	ssn.nodeGroupPredicateFns[name] = fn
 }
 
+// AddNodeGroupOrderFn add nodeGroup order function
+func (ssn *Session) AddNodeGroupOrderFn(name string, fn api.NodeGroupOrderFn) {
+	ssn.nodeGroupOrderFns[name] = fn
+}
+
 // Reclaimable invoke reclaimable function of the plugins
 func (ssn *Session) Reclaimable(reclaimer *api.TaskInfo, reclaimees []*api.TaskInfo) []*api.TaskInfo {
 	var victims []*api.TaskInfo
@@ -851,4 +856,24 @@ func (ssn *Session) NodeGroupPredicate(task *api.TaskInfo, predicateNode []*api.
 		}
 	}
 	return filteredNodes, nil
+}
+
+func (ssn *Session) NodeGroupOrder(jobGroup *api.JobGroupInfo, jobInfo *api.JobInfo,
+	predicateNodeGroup map[string][]*api.NodeInfo) (map[string]map[string]float64, error) {
+	nodeGroupScores := make(map[string]map[string]float64)
+	for _, tier := range ssn.Tiers {
+		for _, plugin := range tier.Plugins {
+			pfn, found := ssn.nodeGroupOrderFns[plugin.Name]
+			if !found {
+				continue
+			}
+			scoreTmp, err := pfn(jobGroup, jobInfo, predicateNodeGroup)
+			if err != nil {
+				return nodeGroupScores, err
+			}
+
+			nodeGroupScores[plugin.Name] = scoreTmp
+		}
+	}
+	return nodeGroupScores, nil
 }
