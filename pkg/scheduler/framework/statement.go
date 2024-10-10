@@ -495,7 +495,6 @@ func (s *Statement) outputOperations(msg string, level klog.Level) {
 		case Allocate:
 			buffer += fmt.Sprintf("task %s allocate to node %s ", op.task.Name, op.task.NodeName)
 		}
-
 	}
 
 	klog.V(level).Info(msg, buffer)

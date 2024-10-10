@@ -42,8 +42,7 @@ import (
 )
 
 const (
-	hyperNodeKey    = "volcano.sh/hypernode"
-	hyperClusterKey = "volcano.sh/hypercluster"
+	hyperNodeKey = "volcano.sh/hypernode"
 )
 
 // Session information for the current session
