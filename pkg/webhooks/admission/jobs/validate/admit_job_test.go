@@ -1241,7 +1241,7 @@ func TestValidateJobCreate(t *testing.T) {
 				t.Error("Queue Creation Failed")
 			}
 
-			ret := ValidateJobCreate(&testCase.Job, &testCase.reviewResponse)
+			ret := ValidateJobCreate(&testCase.Job, &testCase.reviewResponse, config)
 			//fmt.Printf("test-case name:%s, ret:%v  testCase.reviewResponse:%v \n", testCase.Name, ret,testCase.reviewResponse)
 			if testCase.ExpectErr == true && ret == "" {
 				t.Errorf("Expect error msg :%s, but got nil.", testCase.ret)

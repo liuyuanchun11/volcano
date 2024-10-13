@@ -8,6 +8,7 @@ spec:
     - name: job-a
       replicas: 2
       template:
+        queue: default
         tasks:
           - replicas: 2
             name: "work"

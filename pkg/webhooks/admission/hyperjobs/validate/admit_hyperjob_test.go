@@ -347,6 +347,53 @@ func TestValidateHyperJobCreate(t *testing.T) {
 			ret:            "plugin invalid-test is not found",
 			expectErr:      true,
 		},
+		{
+			name: "invalid job minAvailable",
+			hyperJob: v1alpha1.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.HyperJobSpec{
+					MinAvailable: 2,
+					Plugins: map[string][]string{
+						"invalid-test": {},
+					},
+					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: v1alpha1.JobSpec{
+								MinAvailable: 6,
+								Queue:        "default",
+								Tasks: []v1alpha1.TaskSpec{
+									{
+										Name:     "task",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			reviewResponse: admissionv1.AdmissionResponse{Allowed: false},
+			ret:            "plugin invalid-test is not found",
+			expectErr:      true,
+		},
 	}
 
 	for _, testCase := range testCases {
