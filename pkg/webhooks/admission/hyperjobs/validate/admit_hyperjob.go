@@ -22,9 +22,8 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	whv1 "k8s.io/api/admissionregistration/v1"
-	apivalidation "k8s.io/apimachinery/pkg/api/validation"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/capabilities"
 
@@ -165,11 +164,56 @@ func validateHyperJobCreate(hyperJob *vcbatch.HyperJob, reviewResponse *admissio
 }
 
 func validateHyperJobUpdate(old, new *vcbatch.HyperJob) error {
+	var replicasNum int32
+	for i, rj := range new.Spec.ReplicatedJobs {
+		if rj.Replicas < 0 {
+			return fmt.Errorf("replicas in ReplicatedJobs %s must be > 0", rj.Name)
+		}
+		replicasNum += rj.Replicas
+
+		oldRj := &vcbatch.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rj.Name,
+				Namespace: old.Namespace,
+			},
+			Spec: old.Spec.ReplicatedJobs[i].Template,
+		}
+
+		newRj := &vcbatch.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rj.Name,
+				Namespace: new.Namespace,
+			},
+			Spec: rj.Template,
+		}
+
+		err := validate.ValidateJobUpdate(oldRj, newRj)
+		if err != nil {
+			return fmt.Errorf("spec in ReplicatedJobs %s err: %v", rj.Name, err)
+		}
+	}
+
+	if new.Spec.MinAvailable > replicasNum {
+		return fmt.Errorf("'Spec.MinAvailable' should not be greater than total replicas in ReplicatedJobs")
+	}
+
+	if new.Spec.MinAvailable < 0 {
+		return fmt.Errorf("'Spec.MinAvailable' must be >= 0")
+	}
+
 	if len(old.Spec.ReplicatedJobs) != len(new.Spec.ReplicatedJobs) {
 		return fmt.Errorf("hyperjob updates may not add or remove ReplicatedJobs")
 	}
 
-	mungedSpec := new.Spec.DeepCopy()
-	errs := apivalidation.ValidateImmutableField(mungedSpec.ReplicatedJobs, old.Spec.ReplicatedJobs, field.NewPath("spec").Child("replicatedJobs"))
-	return errs.ToAggregate()
+	new.Spec.MinAvailable = old.Spec.MinAvailable
+	for i := range new.Spec.ReplicatedJobs {
+		new.Spec.ReplicatedJobs[i].Replicas = old.Spec.ReplicatedJobs[i].Replicas
+		new.Spec.ReplicatedJobs[i].Template = old.Spec.ReplicatedJobs[i].Template
+	}
+
+	if !apiequality.Semantic.DeepEqual(new.Spec, old.Spec) {
+		return fmt.Errorf("hyperjob updates may not change fields other than `minAvailable`, `replicatedJobs[*].replicas under spec`")
+	}
+
+	return nil
 }

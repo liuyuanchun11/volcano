@@ -1374,7 +1374,7 @@ func TestValidateJobUpdate(t *testing.T) {
 				new.Spec.Queue = "mutated-queue"
 			}
 
-			err := validateJobUpdate(old, new)
+			err := ValidateJobUpdate(old, new)
 			if err != nil && !tc.expectErr {
 				t.Errorf("Expected no error, but got: %v", err)
 			}

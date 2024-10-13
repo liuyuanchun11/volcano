@@ -102,7 +102,7 @@ func AdmitJobs(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		if err != nil {
 			return util.ToAdmissionResponse(err)
 		}
-		err = validateJobUpdate(oldJob, job)
+		err = ValidateJobUpdate(oldJob, job)
 		if err != nil {
 			return util.ToAdmissionResponse(err)
 		}
@@ -245,7 +245,7 @@ func ValidateJobCreate(job *v1alpha1.Job, reviewResponse *admissionv1.AdmissionR
 	return msg
 }
 
-func validateJobUpdate(old, new *v1alpha1.Job) error {
+func ValidateJobUpdate(old, new *v1alpha1.Job) error {
 	var totalReplicas int32
 	for _, task := range new.Spec.Tasks {
 		if task.Replicas < 0 {
