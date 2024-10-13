@@ -248,6 +248,10 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: volcano-admission-service-hyperjobs-mutate
+  { { - if .Values.custom.common_labels } }
+  labels:
+    { { - toYaml .Values.custom.common_labels | nindent 4 } }
+  { { - end } }
 webhooks:
   - admissionReviewVersions:
       - v1
@@ -293,6 +297,10 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: volcano-admission-service-hyperjobs-validate
+  { { - if .Values.custom.common_labels } }
+  labels:
+    { { - toYaml .Values.custom.common_labels | nindent 4 } }
+  { { - end } }
 webhooks:
   - admissionReviewVersions:
       - v1
