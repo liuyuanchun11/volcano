@@ -23,6 +23,7 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"volcano.sh/apis/pkg/apis/batch/v1alpha1"
@@ -209,7 +210,7 @@ func TestValidateHyperJobCreate(t *testing.T) {
 				},
 			},
 			reviewResponse: admissionv1.AdmissionResponse{Allowed: false},
-			ret:            "replicas in ReplicatedJobs job-test must be > 0",
+			ret:            "replicas in ReplicatedJobs[0] must be > 0",
 			expectErr:      true,
 		},
 		{
@@ -298,6 +299,146 @@ func TestValidateHyperJobCreate(t *testing.T) {
 			},
 			reviewResponse: admissionv1.AdmissionResponse{Allowed: false},
 			ret:            "'Spec.MinAvailable' must be >= 0",
+			expectErr:      true,
+		},
+		{
+			name: "invalid jobSpec.minAvailable",
+			hyperJob: v1alpha1.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: v1alpha1.JobSpec{
+								MinAvailable: -1,
+								Queue:        "default",
+								Tasks: []v1alpha1.TaskSpec{
+									{
+										Name:     "task",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			reviewResponse: admissionv1.AdmissionResponse{Allowed: false},
+			ret:            "template in ReplicatedJobs[0] err: job 'minAvailable' must be >= 0",
+			expectErr:      true,
+		},
+		{
+			name: "invalid podSpec",
+			hyperJob: v1alpha1.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: v1alpha1.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []v1alpha1.TaskSpec{
+									{
+										Name:     "task",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+														Resources: v1.ResourceRequirements{
+															Requests: map[v1.ResourceName]resource.Quantity{
+																v1.ResourceCPU: resource.MustParse("-1"),
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			reviewResponse: admissionv1.AdmissionResponse{Allowed: false},
+			ret:            "template in ReplicatedJobs[0] err: spec.task[0].template.spec.containers[0].resources.requests[cpu]: Invalid value: \"-1\": must be greater than or equal to 0.",
+			expectErr:      true,
+		},
+		{
+			name: "invalid plugin",
+			hyperJob: v1alpha1.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: v1alpha1.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []v1alpha1.TaskSpec{
+									{
+										Name:     "task",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Plugins: map[string][]string{
+						"invalid-test": {},
+					},
+				},
+			},
+			reviewResponse: admissionv1.AdmissionResponse{Allowed: false},
+			ret:            "plugin invalid-test is not found",
 			expectErr:      true,
 		},
 	}

@@ -128,7 +128,7 @@ func validateHyperJobCreate(hyperJob *vcbatch.HyperJob, reviewResponse *admissio
 		}
 
 		if rj.Replicas < 0 {
-			return fmt.Sprintf("replicas in ReplicatedJobs %s must be > 0", rj.Name)
+			return fmt.Sprintf("replicas in ReplicatedJobs[%d] must be > 0", i)
 		}
 		replicasNum += rj.Replicas
 
@@ -139,7 +139,10 @@ func validateHyperJobCreate(hyperJob *vcbatch.HyperJob, reviewResponse *admissio
 			},
 			Spec: rj.Template,
 		}
-		msg += validate.ValidateJobCreate(ReplicateJob, reviewResponse, config)
+		jobMsg := validate.ValidateJobCreate(ReplicateJob, reviewResponse, config)
+		if len(jobMsg) != 0 {
+			return fmt.Sprintf("template in ReplicatedJobs[%d] err: %s", i, jobMsg)
+		}
 	}
 
 	if hyperJob.Spec.MinAvailable > replicasNum {
@@ -152,7 +155,7 @@ func validateHyperJobCreate(hyperJob *vcbatch.HyperJob, reviewResponse *admissio
 		return "'Spec.MinAvailable' must be >= 0"
 	}
 
-	for len(hyperJob.Spec.Plugins) > 0 {
+	if len(hyperJob.Spec.Plugins) != 0 {
 		for name := range hyperJob.Spec.Plugins {
 			if _, found := hyperjobplugins.GetPluginBuilder(name); !found {
 				msg += fmt.Sprintf("plugin %s is not found;", name)
