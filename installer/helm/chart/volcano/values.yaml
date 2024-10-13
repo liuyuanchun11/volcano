@@ -19,7 +19,7 @@ custom:
   scheduler_enable: true
   scheduler_replicas: 1
   leader_elect_enable: false
-  enabled_admissions: "/jobs/mutate,/jobs/validate,/podgroups/mutate,/pods/validate,/pods/mutate,/queues/mutate,/queues/validate"
+  enabled_admissions: "/hyperjobs/mutate,/hyperjobs/validate,/jobs/mutate,/jobs/validate,/podgroups/mutate,/pods/validate,/pods/mutate,/queues/mutate,/queues/validate"
 
 # Override the configuration for admission or scheduler.
 # For example:

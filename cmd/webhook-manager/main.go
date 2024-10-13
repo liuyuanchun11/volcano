@@ -30,6 +30,8 @@ import (
 	"volcano.sh/volcano/cmd/webhook-manager/app"
 	"volcano.sh/volcano/cmd/webhook-manager/app/options"
 
+	_ "volcano.sh/volcano/pkg/webhooks/admission/hyperjobs/mutate"
+	_ "volcano.sh/volcano/pkg/webhooks/admission/hyperjobs/validate"
 	_ "volcano.sh/volcano/pkg/webhooks/admission/jobs/mutate"
 	_ "volcano.sh/volcano/pkg/webhooks/admission/jobs/validate"
 	_ "volcano.sh/volcano/pkg/webhooks/admission/podgroups/mutate"
