@@ -9192,20 +9192,20 @@ webhooks:
           values:
             - volcano-system
             - kube-system
-objectSelector: {}
-reinvocationPolicy: Never
-rules:
-  - apiGroups:
-      - batch.volcano.sh
-    apiVersions:
-      - v1alpha1
-    operations:
-      - CREATE
-    resources:
-      - hyperjobs
-    scope: '*'
-sideEffects: NoneOnDryRun
-timeoutSeconds: 10
+    objectSelector: {}
+    reinvocationPolicy: Never
+    rules:
+      - apiGroups:
+          - batch.volcano.sh
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - hyperjobs
+        scope: '*'
+    sideEffects: NoneOnDryRun
+    timeoutSeconds: 10
 ---
 # Source: volcano/templates/webhooks.yaml
 apiVersion: admissionregistration.k8s.io/v1
@@ -9270,20 +9270,20 @@ webhooks:
           values:
             - volcano-system
             - kube-system
-objectSelector: {}
-rules:
-  - apiGroups:
-      - batch.volcano.sh
-    apiVersions:
-      - v1alpha1
-    operations:
-      - CREATE
-      - UPDATE
-    resources:
-      - hyperjobs
-    scope: '*'
-sideEffects: NoneOnDryRun
-timeoutSeconds: 10
+    objectSelector: {}
+    rules:
+      - apiGroups:
+          - batch.volcano.sh
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - hyperjobs
+        scope: '*'
+    sideEffects: NoneOnDryRun
+    timeoutSeconds: 10
 ---
 # Source: volcano/templates/webhooks.yaml
 apiVersion: admissionregistration.k8s.io/v1
