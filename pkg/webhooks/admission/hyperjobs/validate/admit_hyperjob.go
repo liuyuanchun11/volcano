@@ -123,6 +123,10 @@ func validateHyperJobCreate(hyperJob *vcbatch.HyperJob, reviewResponse *admissio
 
 	var replicasNum int32
 	for _, rj := range hyperJob.Spec.ReplicatedJobs {
+		if len(rj.Name) == 0 {
+			return fmt.Sprintf("ReplicatedJobs %s must have a name", rj.Name)
+		}
+
 		if rj.Replicas < 0 {
 			return fmt.Sprintf("replicas in ReplicatedJobs %s must be > 0", rj.Name)
 		}
