@@ -99,7 +99,7 @@ func HyperJobs(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 func createPatch(hyperJob *v1alpha1.HyperJob) ([]byte, error) {
 	var patch []patchOperation
 
-	pathMinAvailable := patchDefaultMinAvailable(hyperJob)
+	pathMinAvailable := patchMinAvailable(hyperJob)
 	if pathMinAvailable != nil {
 		patch = append(patch, *pathMinAvailable)
 	}
@@ -107,7 +107,7 @@ func createPatch(hyperJob *v1alpha1.HyperJob) ([]byte, error) {
 	return json.Marshal(patch)
 }
 
-func patchDefaultMinAvailable(hyperJob *v1alpha1.HyperJob) *patchOperation {
+func patchMinAvailable(hyperJob *v1alpha1.HyperJob) *patchOperation {
 	if hyperJob.Spec.MinAvailable == 0 {
 		var minAvailable int32
 		for _, rj := range hyperJob.Spec.ReplicatedJobs {
@@ -116,5 +116,6 @@ func patchDefaultMinAvailable(hyperJob *v1alpha1.HyperJob) *patchOperation {
 
 		return &patchOperation{Op: "add", Path: "/spec/minAvailable", Value: minAvailable}
 	}
+
 	return nil
 }
