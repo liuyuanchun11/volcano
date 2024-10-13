@@ -96,7 +96,7 @@ func AdmitJobs(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 
 	switch ar.Request.Operation {
 	case admissionv1.Create:
-		msg = validateJobCreate(job, &reviewResponse)
+		msg = ValidateJobCreate(job, &reviewResponse)
 	case admissionv1.Update:
 		oldJob, err := schema.DecodeJob(ar.Request.OldObject, ar.Request.Resource)
 		if err != nil {
@@ -117,7 +117,7 @@ func AdmitJobs(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	return &reviewResponse
 }
 
-func validateJobCreate(job *v1alpha1.Job, reviewResponse *admissionv1.AdmissionResponse) string {
+func ValidateJobCreate(job *v1alpha1.Job, reviewResponse *admissionv1.AdmissionResponse) string {
 	var msg string
 	taskNames := map[string]string{}
 	var totalReplicas int32

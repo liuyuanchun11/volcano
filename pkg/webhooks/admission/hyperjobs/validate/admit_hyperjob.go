@@ -30,6 +30,7 @@ import (
 
 	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	hyperjobplugins "volcano.sh/volcano/pkg/controllers/hyperjob/plugins"
+	"volcano.sh/volcano/pkg/webhooks/admission/jobs/validate"
 	"volcano.sh/volcano/pkg/webhooks/router"
 	"volcano.sh/volcano/pkg/webhooks/schema"
 	"volcano.sh/volcano/pkg/webhooks/util"
@@ -124,9 +125,18 @@ func validateHyperJobCreate(hyperJob *vcbatch.HyperJob, reviewResponse *admissio
 	var replicasNum int32
 	for _, rj := range hyperJob.Spec.ReplicatedJobs {
 		if rj.Replicas < 0 {
-			return fmt.Sprintf("replicas in ReplicatedJobs %s must be >= 0", rj.Name)
+			return fmt.Sprintf("replicas in ReplicatedJobs %s must be > 0", rj.Name)
 		}
 		replicasNum += rj.Replicas
+
+		ReplicateJob := &vcbatch.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rj.Name,
+				Namespace: hyperJob.Namespace,
+			},
+			Spec: rj.Template,
+		}
+		msg += validate.ValidateJobCreate(ReplicateJob, reviewResponse)
 	}
 
 	if hyperJob.Spec.MinAvailable > replicasNum {
