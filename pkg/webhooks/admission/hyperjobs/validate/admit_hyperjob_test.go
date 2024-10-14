@@ -26,39 +26,38 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"volcano.sh/apis/pkg/apis/batch/v1alpha1"
+	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	schedulingv1beta2 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	fakeclient "volcano.sh/apis/pkg/client/clientset/versioned/fake"
 )
 
 func TestValidateHyperJobCreate(t *testing.T) {
-
 	testCases := []struct {
 		name           string
-		hyperJob       v1alpha1.HyperJob
+		hyperJob       vcbatch.HyperJob
 		expectErr      bool
 		reviewResponse admissionv1.AdmissionResponse
 		ret            string
 	}{
 		{
 			name: "validate valid-hyperjob",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 2,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: 2,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -86,23 +85,23 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "multi ReplicatedJobs",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 2,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: 2,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -124,12 +123,12 @@ func TestValidateHyperJobCreate(t *testing.T) {
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: 2,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -157,13 +156,13 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "no ReplicatedJobs",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{},
+				Spec: vcbatch.HyperJobSpec{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{},
 				},
 			},
 			reviewResponse: admissionv1.AdmissionResponse{Allowed: false},
@@ -172,17 +171,17 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "no replicatedJob name",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 2,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
-							Template: v1alpha1.JobSpec{},
+							Template: vcbatch.JobSpec{},
 						},
 					},
 				},
@@ -193,18 +192,18 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "invalid replicatedJob.replicas",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 2,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: -1,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{},
+							Template: vcbatch.JobSpec{},
 						},
 					},
 				},
@@ -215,23 +214,23 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "minAvailable greater than replicas",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 8,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: 2,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -259,23 +258,23 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "invalid minAvailable",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: -1,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: 2,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -303,23 +302,23 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "invalid jobSpec.minAvailable",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 2,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: -1,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -347,23 +346,23 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "invalid podSpec",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 2,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: 2,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -396,23 +395,23 @@ func TestValidateHyperJobCreate(t *testing.T) {
 		},
 		{
 			name: "invalid plugin",
-			hyperJob: v1alpha1.HyperJob{
+			hyperJob: vcbatch.HyperJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "hyperjob-test",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.HyperJobSpec{
+				Spec: vcbatch.HyperJobSpec{
 					MinAvailable: 2,
-					ReplicatedJobs: []v1alpha1.ReplicatedJob{
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
 						{
 							Replicas: 2,
 							Name:     "job-test",
-							Template: v1alpha1.JobSpec{
+							Template: vcbatch.JobSpec{
 								MinAvailable: 2,
 								Queue:        "default",
-								Tasks: []v1alpha1.TaskSpec{
+								Tasks: []vcbatch.TaskSpec{
 									{
-										Name:     "task",
+										Name:     "worker",
 										Replicas: 2,
 										Template: v1.PodTemplateSpec{
 											ObjectMeta: metav1.ObjectMeta{
@@ -483,6 +482,443 @@ func TestValidateHyperJobCreate(t *testing.T) {
 			}
 			if testCase.expectErr == false && testCase.reviewResponse.Allowed != true {
 				t.Errorf("Expect Allowed as true but got false. %v", testCase.reviewResponse)
+			}
+		})
+	}
+}
+
+func TestValidateHyperJobUpdate(t *testing.T) {
+	oldHj := &vcbatch.HyperJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "hyperjob-test",
+			Namespace: "default",
+		},
+		Spec: vcbatch.HyperJobSpec{
+			MinAvailable: 2,
+			ReplicatedJobs: []vcbatch.ReplicatedJob{
+				{
+					Replicas: 2,
+					Name:     "job-test",
+					Template: vcbatch.JobSpec{
+						MinAvailable: 2,
+						Queue:        "default",
+						Tasks: []vcbatch.TaskSpec{
+							{
+								Name:     "worker",
+								Replicas: 2,
+								Template: v1.PodTemplateSpec{
+									ObjectMeta: metav1.ObjectMeta{
+										Labels: map[string]string{"name": "test"},
+									},
+									Spec: v1.PodSpec{
+										Containers: []v1.Container{
+											{
+												Name:  "fake-name",
+												Image: "busybox:1.24",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name           string
+		newHyperJob    *vcbatch.HyperJob
+		expectErr      bool
+		exceptErrorMsg string
+	}{
+		{
+			name: "valid hyperjob",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: 3,
+							Name:     "job-test",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: 3,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      false,
+			exceptErrorMsg: "",
+		},
+		{
+			name: "invalid replicas in ReplicatedJob",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: -1,
+							Name:     "job-test",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      true,
+			exceptErrorMsg: "replicas in ReplicatedJobs[0] must be > 0",
+		},
+		{
+			name: "invalid replicas in jobSpec",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: -1,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      true,
+			exceptErrorMsg: "spec in ReplicatedJobs[0] err: 'replicas' must be >= 0 in task: worker",
+		},
+		{
+			name: "invalid minAvailable",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: -1,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      true,
+			exceptErrorMsg: "'Spec.MinAvailable' must be >= 0",
+		},
+		{
+			name: "minAvailable greater than total replicas",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: 8,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      true,
+			exceptErrorMsg: "'Spec.MinAvailable' should not be greater than total replicas in ReplicatedJobs",
+		},
+		{
+			name: "add new ReplicatedJob",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: 8,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Replicas: 2,
+							Name:     "job-test-new",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      true,
+			exceptErrorMsg: "hyperjob updates may not add or remove ReplicatedJobs",
+		},
+		{
+			name: "modify replicasJob name",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test-new",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      true,
+			exceptErrorMsg: "hyperjob updates may not change fields other than `minAvailable`, `replicatedJobs[*].replicas under spec`",
+		},
+		{
+			name: "modify task name",
+			newHyperJob: &vcbatch.HyperJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hyperjob-test",
+					Namespace: "default",
+				},
+				Spec: vcbatch.HyperJobSpec{
+					MinAvailable: 2,
+					ReplicatedJobs: []vcbatch.ReplicatedJob{
+						{
+							Replicas: 2,
+							Name:     "job-test",
+							Template: vcbatch.JobSpec{
+								MinAvailable: 2,
+								Queue:        "default",
+								Tasks: []vcbatch.TaskSpec{
+									{
+										Name:     "worker-new",
+										Replicas: 2,
+										Template: v1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"name": "test"},
+											},
+											Spec: v1.PodSpec{
+												Containers: []v1.Container{
+													{
+														Name:  "fake-name",
+														Image: "busybox:1.24",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr:      true,
+			exceptErrorMsg: "job updates may not change fields other than `minAvailable`, `tasks[*].replicas under spec`",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ret := validateHyperJobUpdate(oldHj, testCase.newHyperJob)
+			if testCase.expectErr == true && ret == nil {
+				t.Errorf("Expect error msg :%s, but got nil.", testCase.exceptErrorMsg)
+			}
+
+			if testCase.expectErr == true && ret != nil && !strings.Contains(ret.Error(), testCase.exceptErrorMsg) {
+				t.Errorf("Expect error msg :%s, but got diff error %v", testCase.exceptErrorMsg, ret)
+			}
+
+			if testCase.expectErr == false && ret != nil {
+				t.Errorf("Expect no error, but got error %v", ret)
 			}
 		})
 	}

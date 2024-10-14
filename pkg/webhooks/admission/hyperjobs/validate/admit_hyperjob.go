@@ -174,9 +174,13 @@ func validateHyperJobUpdate(old, new *vcbatch.HyperJob) error {
 	var replicasNum int32
 	for i, rj := range new.Spec.ReplicatedJobs {
 		if rj.Replicas < 0 {
-			return fmt.Errorf("replicas in ReplicatedJobs %s must be > 0", rj.Name)
+			return fmt.Errorf("replicas in ReplicatedJobs[%d] must be > 0", i)
 		}
 		replicasNum += rj.Replicas
+
+		if i > len(old.Spec.ReplicatedJobs)-1 {
+			return fmt.Errorf("hyperjob updates may not add or remove ReplicatedJobs")
+		}
 
 		oldRj := &vcbatch.Job{
 			ObjectMeta: metav1.ObjectMeta{
@@ -196,7 +200,7 @@ func validateHyperJobUpdate(old, new *vcbatch.HyperJob) error {
 
 		err := validate.ValidateJobUpdate(oldRj, newRj)
 		if err != nil {
-			return fmt.Errorf("spec in ReplicatedJobs %s err: %v", rj.Name, err)
+			return fmt.Errorf("spec in ReplicatedJobs[%d] err: %v", i, err)
 		}
 	}
 

@@ -24,7 +24,7 @@ import (
 	whv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/klog/v2"
 
-	"volcano.sh/apis/pkg/apis/batch/v1alpha1"
+	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	"volcano.sh/volcano/pkg/webhooks/router"
 	"volcano.sh/volcano/pkg/webhooks/schema"
 	"volcano.sh/volcano/pkg/webhooks/util"
@@ -96,7 +96,7 @@ func HyperJobs(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	return &reviewResponse
 }
 
-func createPatch(hyperJob *v1alpha1.HyperJob) ([]byte, error) {
+func createPatch(hyperJob *vcbatch.HyperJob) ([]byte, error) {
 	var patch []patchOperation
 
 	pathMinAvailable := patchMinAvailable(hyperJob)
@@ -107,7 +107,7 @@ func createPatch(hyperJob *v1alpha1.HyperJob) ([]byte, error) {
 	return json.Marshal(patch)
 }
 
-func patchMinAvailable(hyperJob *v1alpha1.HyperJob) *patchOperation {
+func patchMinAvailable(hyperJob *vcbatch.HyperJob) *patchOperation {
 	if hyperJob.Spec.MinAvailable == 0 {
 		var minAvailable int32
 		for _, rj := range hyperJob.Spec.ReplicatedJobs {
