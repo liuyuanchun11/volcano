@@ -630,3 +630,39 @@ func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, e
 
 	return job.Queue, nil
 }
+
+func (ssn *Session) GetJobBoundNodeGroupId(jobInfo *api.JobInfo) (string, error) {
+	nodeGroupIds := map[string]struct{}{}
+
+	for _, ti := range jobInfo.Tasks {
+		if api.AllocatedStatus(ti.Status) {
+			boundNode := ssn.Nodes[ti.NodeName]
+			if boundNode == nil {
+				return "", fmt.Errorf("get task %s bound node %s failed", ti.Name, ti.NodeName)
+			}
+
+			nodeGroupId, exist := boundNode.Node.Labels[hyperNodeKey]
+			if !exist {
+				return "", fmt.Errorf("task %s bound node %s doesn't have label %s",
+					ti.Name, ti.NodeName, hyperNodeKey)
+			}
+			if _, exist = nodeGroupIds[nodeGroupId]; !exist {
+				nodeGroupIds[nodeGroupId] = struct{}{}
+			}
+		}
+	}
+
+	if len(nodeGroupIds) == 0 {
+		return "", nil
+	}
+
+	if len(nodeGroupIds) > 1 {
+		return "", fmt.Errorf("job %s bound to multiple nodegroups %v", jobInfo.UID, nodeGroupIds)
+	}
+
+	var nodeGroupId string
+	for id := range nodeGroupIds {
+		nodeGroupId = id
+	}
+	return nodeGroupId, nil
+}
