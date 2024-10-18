@@ -633,7 +633,7 @@ func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, e
 	return job.Queue, nil
 }
 
-// GetNodeGroupIdByJob obtains nodeGroupId of the node which tasks bound to in job
+// GetNodeGroupIdByJob obtains nodeGroupId of the node which tasks bound to in job.
 func (ssn *Session) GetNodeGroupIdByJob(jobInfo *api.JobInfo) (string, error) {
 	nodeGroupIds := map[string]struct{}{}
 
