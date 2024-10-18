@@ -24,11 +24,11 @@ import (
 	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 
 	"volcano.sh/volcano/pkg/controllers/hyperjob/plugins"
-	hjpluginsinterface "volcano.sh/volcano/pkg/controllers/hyperjob/plugins/interface"
+	"volcano.sh/volcano/pkg/controllers/hyperjob/plugins/interface"
 )
 
 func (hjr *HyperJobReconciler) pluginOnJobCreate(hyperJob *vcbatch.HyperJob, job *vcbatch.Job) error {
-	client := hjpluginsinterface.PluginClientset{
+	client := hyperjobpluginsinterface.PluginClientset{
 		KubeClients: hjr.KubeClient,
 		VcClients:   hjr.VcClient,
 	}
@@ -50,7 +50,7 @@ func (hjr *HyperJobReconciler) pluginOnJobCreate(hyperJob *vcbatch.HyperJob, job
 }
 
 func (hjr *HyperJobReconciler) pluginOnHyperJobAdd(hyperJob *vcbatch.HyperJob) error {
-	client := hjpluginsinterface.PluginClientset{
+	client := hyperjobpluginsinterface.PluginClientset{
 		KubeClients: hjr.KubeClient,
 		VcClients:   hjr.VcClient,
 	}
@@ -73,7 +73,7 @@ func (hjr *HyperJobReconciler) pluginOnHyperJobAdd(hyperJob *vcbatch.HyperJob) e
 }
 
 func (hjr *HyperJobReconciler) pluginOnHyperJobDelete(hyperJob *vcbatch.HyperJob) error {
-	client := hjpluginsinterface.PluginClientset{
+	client := hyperjobpluginsinterface.PluginClientset{
 		KubeClients: hjr.KubeClient,
 		VcClients:   hjr.VcClient,
 	}
