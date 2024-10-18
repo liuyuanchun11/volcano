@@ -18,6 +18,7 @@ package framework
 
 import (
 	"fmt"
+	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -201,6 +202,7 @@ func openSession(cache cache.Cache) *Session {
 	ssn.NodeList = util.GetNodeList(snapshot.Nodes, snapshot.NodeList)
 	ssn.Nodes = snapshot.Nodes
 
+	// Generate nodeGroups based on the node label volcano.sh/hypernode
 	for _, node := range ssn.Nodes {
 		hyperNodeId, exist := node.Node.Labels[hyperNodeKey]
 		if !exist {
@@ -631,8 +633,14 @@ func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, e
 	return job.Queue, nil
 }
 
-func (ssn *Session) GetJobBoundNodeGroupId(jobInfo *api.JobInfo) (string, error) {
+// GetNodeGroupIdByJob obtains the nodeGroupId of node which tasks bound to in job
+func (ssn *Session) GetNodeGroupIdByJob(jobInfo *api.JobInfo) (string, error) {
 	nodeGroupIds := map[string]struct{}{}
+
+	// For job without hypernode affinity annotation, nodeGroupId doesn't need to be returned.
+	if _, exist := jobInfo.PodGroup.Annotations[vcbatch.HyperNodeAffinityAnnotation]; !exist {
+		return "", nil
+	}
 
 	for _, ti := range jobInfo.Tasks {
 		if api.AllocatedStatus(ti.Status) {
@@ -656,6 +664,8 @@ func (ssn *Session) GetJobBoundNodeGroupId(jobInfo *api.JobInfo) (string, error)
 		return "", nil
 	}
 
+	// If tasks in job are bound to different nodeGroups,
+	// an error has occurred and the scheduling should not be continued.
 	if len(nodeGroupIds) > 1 {
 		return "", fmt.Errorf("job %s bound to multiple nodegroups %v", jobInfo.UID, nodeGroupIds)
 	}

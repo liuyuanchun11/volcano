@@ -858,6 +858,7 @@ func (ssn *Session) NodeGroupPredicate(task *api.TaskInfo, predicateNode []*api.
 	return filteredNodes, nil
 }
 
+// NodeGroupOrder return value is defined as map[plugin name]map[nodeGroupId]score
 func (ssn *Session) NodeGroupOrder(jobGroup *api.JobGroupInfo, jobInfo *api.JobInfo,
 	predicateNodeGroup map[string][]*api.NodeInfo) (map[string]map[string]float64, error) {
 	nodeGroupScores := make(map[string]map[string]float64)
