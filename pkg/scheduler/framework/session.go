@@ -18,7 +18,6 @@ package framework
 
 import (
 	"fmt"
-	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -32,6 +31,7 @@ import (
 	"k8s.io/klog/v2"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 
+	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	"volcano.sh/apis/pkg/apis/scheduling"
 	schedulingscheme "volcano.sh/apis/pkg/apis/scheduling/scheme"
 	vcv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
@@ -202,7 +202,7 @@ func openSession(cache cache.Cache) *Session {
 	ssn.NodeList = util.GetNodeList(snapshot.Nodes, snapshot.NodeList)
 	ssn.Nodes = snapshot.Nodes
 
-	// Generate nodeGroups based on the node label volcano.sh/hypernode
+	// Generate nodeGroups based on the node label volcano.sh/hypernode.
 	for _, node := range ssn.Nodes {
 		hyperNodeId, exist := node.Node.Labels[hyperNodeKey]
 		if !exist {
@@ -633,7 +633,7 @@ func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, e
 	return job.Queue, nil
 }
 
-// GetNodeGroupIdByJob obtains the nodeGroupId of node which tasks bound to in job
+// GetNodeGroupIdByJob obtains nodeGroupId of the node which tasks bound to in job
 func (ssn *Session) GetNodeGroupIdByJob(jobInfo *api.JobInfo) (string, error) {
 	nodeGroupIds := map[string]struct{}{}
 
