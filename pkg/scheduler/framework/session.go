@@ -31,6 +31,7 @@ import (
 	"k8s.io/klog/v2"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 
+	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	"volcano.sh/apis/pkg/apis/scheduling"
 	schedulingscheme "volcano.sh/apis/pkg/apis/scheduling/scheme"
 	vcv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
@@ -39,6 +40,10 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/conf"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/util"
+)
+
+const (
+	hyperNodeKey = "volcano.sh/hypernode"
 )
 
 // Session information for the current session
@@ -59,6 +64,7 @@ type Session struct {
 	Jobs           map[api.JobID]*api.JobInfo
 	JobGroups      map[api.JobGroupID]*api.JobGroupInfo
 	Nodes          map[string]*api.NodeInfo
+	NodeGroups     map[string][]*api.NodeInfo
 	CSINodesStatus map[string]*api.CSINodeStatusInfo
 	RevocableNodes map[string]*api.NodeInfo
 	Queues         map[api.QueueID]*api.QueueInfo
@@ -104,6 +110,7 @@ type Session struct {
 	jobStarvingFns        map[string]api.ValidateFn
 	jobGroupReadyFns      map[string]api.ValidateFn
 	nodeGroupPredicateFns map[string]api.NodeGroupPredicateFn
+	nodeGroupOrderFns     map[string]api.NodeGroupOrderFn
 }
 
 func openSession(cache cache.Cache) *Session {
@@ -121,6 +128,7 @@ func openSession(cache cache.Cache) *Session {
 		Jobs:           map[api.JobID]*api.JobInfo{},
 		JobGroups:      map[api.JobGroupID]*api.JobGroupInfo{},
 		Nodes:          map[string]*api.NodeInfo{},
+		NodeGroups:     map[string][]*api.NodeInfo{},
 		CSINodesStatus: map[string]*api.CSINodeStatusInfo{},
 		RevocableNodes: map[string]*api.NodeInfo{},
 		Queues:         map[api.QueueID]*api.QueueInfo{},
@@ -153,6 +161,7 @@ func openSession(cache cache.Cache) *Session {
 		jobStarvingFns:        map[string]api.ValidateFn{},
 		jobGroupReadyFns:      map[string]api.ValidateFn{},
 		nodeGroupPredicateFns: map[string]api.NodeGroupPredicateFn{},
+		nodeGroupOrderFns:     map[string]api.NodeGroupOrderFn{},
 	}
 
 	snapshot := cache.Snapshot()
@@ -192,6 +201,19 @@ func openSession(cache cache.Cache) *Session {
 
 	ssn.NodeList = util.GetNodeList(snapshot.Nodes, snapshot.NodeList)
 	ssn.Nodes = snapshot.Nodes
+
+	// Generate nodeGroups based on the node label volcano.sh/hypernode.
+	for _, node := range ssn.Nodes {
+		hyperNodeId, exist := node.Node.Labels[hyperNodeKey]
+		if !exist {
+			continue
+		}
+		if _, exist := ssn.NodeGroups[hyperNodeId]; !exist {
+			ssn.NodeGroups[hyperNodeId] = make([]*api.NodeInfo, 0)
+		}
+		ssn.NodeGroups[hyperNodeId] = append(ssn.NodeGroups[hyperNodeId], node)
+	}
+
 	ssn.CSINodesStatus = snapshot.CSINodesStatus
 	ssn.RevocableNodes = snapshot.RevocableNodes
 	ssn.Queues = snapshot.Queues
@@ -609,4 +631,48 @@ func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, e
 	}
 
 	return job.Queue, nil
+}
+
+// GetNodeGroupIdByJob obtains nodeGroupId of the node which tasks bound to in job.
+func (ssn *Session) GetNodeGroupIdByJob(jobInfo *api.JobInfo) (string, error) {
+	nodeGroupIds := map[string]struct{}{}
+
+	// For job without hypernode affinity annotation, nodeGroupId doesn't need to be returned.
+	if _, exist := jobInfo.PodGroup.Annotations[vcbatch.HyperNodeAffinityAnnotation]; !exist {
+		return "", nil
+	}
+
+	for _, ti := range jobInfo.Tasks {
+		if api.AllocatedStatus(ti.Status) {
+			boundNode := ssn.Nodes[ti.NodeName]
+			if boundNode == nil {
+				return "", fmt.Errorf("get task %s bound node %s failed", ti.Name, ti.NodeName)
+			}
+
+			nodeGroupId, exist := boundNode.Node.Labels[hyperNodeKey]
+			if !exist {
+				return "", fmt.Errorf("task %s bound node %s doesn't have label %s",
+					ti.Name, ti.NodeName, hyperNodeKey)
+			}
+			if _, exist = nodeGroupIds[nodeGroupId]; !exist {
+				nodeGroupIds[nodeGroupId] = struct{}{}
+			}
+		}
+	}
+
+	if len(nodeGroupIds) == 0 {
+		return "", nil
+	}
+
+	// If tasks in job are bound to different nodeGroups,
+	// an error has occurred and the scheduling should not be continued.
+	if len(nodeGroupIds) > 1 {
+		return "", fmt.Errorf("job %s bound to multiple nodegroups %v", jobInfo.UID, nodeGroupIds)
+	}
+
+	var nodeGroupId string
+	for id := range nodeGroupIds {
+		nodeGroupId = id
+	}
+	return nodeGroupId, nil
 }
