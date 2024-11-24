@@ -148,7 +148,7 @@ spec:
             - -v=4
             - 2>&1
           image: docker.io/volcanosh/vc-webhook-manager:v1.10.0
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           name: admission
           volumeMounts:
             - mountPath: /admission.local.config/certificates
@@ -232,7 +232,7 @@ spec:
       containers:
         - name: main
           image: docker.io/volcanosh/vc-webhook-manager:v1.10.0
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: ["./gen-admission-secret.sh", "--service", "volcano-admission-service", "--namespace",
                     "volcano-system", "--secret", "volcano-admission-secret"]
 ---
@@ -4359,7 +4359,7 @@ spec:
               - --leader-elect=false
               - -v=4
               - 2>&1
-            imagePullPolicy: Always
+            imagePullPolicy: IfNotPresent
 ---
 # Source: volcano/templates/scheduler.yaml
 apiVersion: v1
@@ -4535,7 +4535,7 @@ spec:
           env:
             - name: DEBUG_SOCKET_DIR
               value: /tmp/klog-socks
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: scheduler-config
               mountPath: /volcano.scheduler
