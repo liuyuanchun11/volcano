@@ -1049,3 +1049,29 @@ func (ji *JobInfo) IsPending() bool {
 func (ji *JobInfo) HasPendingTasks() bool {
 	return len(ji.TaskStatusIndex[Pending]) != 0
 }
+
+// GetJobGroupID Obtains the jobGroupID from the pod group.
+// If the pod group carries the volcano.sh/hyperjob-name and volcano.sh/hyperjob-uid,
+// the jobGroupID consists of hyperjob namespace/name-UID, and IsNoneOwner returns false.
+// Otherwise, the jobGroupID consists of podGroup namespace/name, and IsNoneOwner returns true.
+func (ji *JobInfo) GetJobGroupID() (JobGroupID, bool, error) {
+	var jobGroupID JobGroupID
+	if ji.PodGroup == nil {
+		return "", false, fmt.Errorf("podGroup is nil")
+	}
+	podGroup := ji.PodGroup
+
+	hyperJobName, exist := podGroup.Annotations[batch.HyperJobNameKey]
+	if exist {
+		hyperJobUID, exist := podGroup.Annotations[batch.HyperJobUIDKey]
+		if !exist {
+			return "", false, fmt.Errorf("hyperJobUID not exist")
+		}
+		jobGroupID = GetJobGroupID(podGroup.Namespace, hyperJobName, hyperJobUID)
+		return jobGroupID, false, nil
+	} else {
+		// Jobs that are not created by hyperJob use the name of the job as the jobGroup name
+		jobGroupID = GetJobGroupID(podGroup.Namespace, podGroup.Name, "")
+		return jobGroupID, true, nil
+	}
+}

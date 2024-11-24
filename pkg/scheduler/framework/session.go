@@ -31,6 +31,7 @@ import (
 	"k8s.io/klog/v2"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 
+	vcbatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	"volcano.sh/apis/pkg/apis/scheduling"
 	schedulingscheme "volcano.sh/apis/pkg/apis/scheduling/scheme"
 	vcv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
@@ -39,6 +40,10 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/conf"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/util"
+)
+
+const (
+	hyperNodeKey = "volcano.sh/hypernode"
 )
 
 // Session information for the current session
@@ -57,7 +62,9 @@ type Session struct {
 	podGroupStatus map[api.JobID]scheduling.PodGroupStatus
 
 	Jobs           map[api.JobID]*api.JobInfo
+	JobGroups      map[api.JobGroupID]*api.JobGroupInfo
 	Nodes          map[string]*api.NodeInfo
+	NodeGroups     map[string][]*api.NodeInfo
 	CSINodesStatus map[string]*api.CSINodeStatusInfo
 	RevocableNodes map[string]*api.NodeInfo
 	Queues         map[api.QueueID]*api.QueueInfo
@@ -101,6 +108,8 @@ type Session struct {
 	reservedNodesFns  map[string]api.ReservedNodesFn
 	victimTasksFns    map[string][]api.VictimTasksFn
 	jobStarvingFns    map[string]api.ValidateFn
+	jobGroupReadyFns  map[string]api.ValidateFn
+	nodeGroupOrderFns map[string]api.NodeGroupOrderFn
 }
 
 func openSession(cache cache.Cache) *Session {
@@ -116,7 +125,9 @@ func openSession(cache cache.Cache) *Session {
 		podGroupStatus: map[api.JobID]scheduling.PodGroupStatus{},
 
 		Jobs:           map[api.JobID]*api.JobInfo{},
+		JobGroups:      map[api.JobGroupID]*api.JobGroupInfo{},
 		Nodes:          map[string]*api.NodeInfo{},
+		NodeGroups:     map[string][]*api.NodeInfo{},
 		CSINodesStatus: map[string]*api.CSINodeStatusInfo{},
 		RevocableNodes: map[string]*api.NodeInfo{},
 		Queues:         map[api.QueueID]*api.QueueInfo{},
@@ -147,6 +158,8 @@ func openSession(cache cache.Cache) *Session {
 		reservedNodesFns:  map[string]api.ReservedNodesFn{},
 		victimTasksFns:    map[string][]api.VictimTasksFn{},
 		jobStarvingFns:    map[string]api.ValidateFn{},
+		jobGroupReadyFns:  map[string]api.ValidateFn{},
+		nodeGroupOrderFns: map[string]api.NodeGroupOrderFn{},
 	}
 
 	snapshot := cache.Snapshot()
@@ -176,8 +189,29 @@ func openSession(cache cache.Cache) *Session {
 			delete(ssn.Jobs, job.UID)
 		}
 	}
+
+	ssn.JobGroups = snapshot.JobGroups
+	for _, jobGroup := range ssn.JobGroups {
+		if !jobGroup.IsValid() {
+			delete(ssn.JobGroups, jobGroup.UID)
+		}
+	}
+
 	ssn.NodeList = util.GetNodeList(snapshot.Nodes, snapshot.NodeList)
 	ssn.Nodes = snapshot.Nodes
+
+	// Generate nodeGroups based on the node label volcano.sh/hypernode.
+	for _, node := range ssn.Nodes {
+		hyperNodeId, exist := node.Node.Labels[hyperNodeKey]
+		if !exist {
+			continue
+		}
+		if _, exist := ssn.NodeGroups[hyperNodeId]; !exist {
+			ssn.NodeGroups[hyperNodeId] = make([]*api.NodeInfo, 0)
+		}
+		ssn.NodeGroups[hyperNodeId] = append(ssn.NodeGroups[hyperNodeId], node)
+	}
+
 	ssn.CSINodesStatus = snapshot.CSINodesStatus
 	ssn.RevocableNodes = snapshot.RevocableNodes
 	ssn.Queues = snapshot.Queues
@@ -187,8 +221,8 @@ func openSession(cache cache.Cache) *Session {
 		ssn.TotalResource.Add(n.Allocatable)
 	}
 
-	klog.V(3).Infof("Open Session %v with <%d> Job and <%d> Queues",
-		ssn.UID, len(ssn.Jobs), len(ssn.Queues))
+	klog.V(3).Infof("Open Session %v with <%d> JobGroup, <%d> Job and <%d> Queues",
+		ssn.UID, len(ssn.JobGroups), len(ssn.Jobs), len(ssn.Queues))
 
 	return ssn
 }
@@ -627,4 +661,88 @@ func (ssn Session) String() string {
 	}
 
 	return msg
+}
+
+// JobGroupOrderFn invoke jobGroupOrder function of the plugins
+func (ssn *Session) JobGroupOrderFn(l, r interface{}) bool {
+	leftJobGroup, ok := l.(*api.JobGroupInfo)
+	if !ok {
+		return true
+	}
+	rightJobGroup, ok := r.(*api.JobGroupInfo)
+	if !ok {
+		return false
+	}
+
+	// all jobs in jobGroup have the same priority and queue, compare job instead
+	leftJobId, err := leftJobGroup.GetAnyOneJobId()
+	if err != nil {
+		return true
+	}
+	rightJobId, err := rightJobGroup.GetAnyOneJobId()
+	if err != nil {
+		return false
+	}
+
+	leftJob := ssn.Jobs[leftJobId]
+	rightJob := ssn.Jobs[rightJobId]
+	return ssn.JobOrderFn(leftJob, rightJob)
+}
+
+func (ssn *Session) GetJobGroupQueue(jobGroup *api.JobGroupInfo) (api.QueueID, error) {
+	jobId, err := jobGroup.GetAnyOneJobId()
+	if err != nil {
+		return "", fmt.Errorf("failed to get job id from jobGroup")
+	}
+
+	job, ok := ssn.Jobs[jobId]
+	if !ok {
+		return "", fmt.Errorf("failed to find job %s", jobId)
+	}
+
+	return job.Queue, nil
+}
+
+// GetNodeGroupIdByJob obtains nodeGroupId of the node which tasks bound to in job.
+func (ssn *Session) GetNodeGroupIdByJob(jobInfo *api.JobInfo) (string, error) {
+	nodeGroupIds := map[string]struct{}{}
+
+	// For job without hypernode affinity annotation, nodeGroupId doesn't need to be returned.
+	if _, exist := jobInfo.PodGroup.Annotations[vcbatch.HyperNodeAffinityAnnotation]; !exist {
+		return "", nil
+	}
+
+	for _, ti := range jobInfo.Tasks {
+		if api.AllocatedStatus(ti.Status) {
+			boundNode := ssn.Nodes[ti.NodeName]
+			if boundNode == nil {
+				return "", fmt.Errorf("get task %s bound node %s failed", ti.Name, ti.NodeName)
+			}
+
+			nodeGroupId, exist := boundNode.Node.Labels[hyperNodeKey]
+			if !exist {
+				return "", fmt.Errorf("task %s bound node %s doesn't have label %s",
+					ti.Name, ti.NodeName, hyperNodeKey)
+			}
+			if _, exist = nodeGroupIds[nodeGroupId]; !exist {
+				nodeGroupIds[nodeGroupId] = struct{}{}
+			}
+		}
+	}
+
+	if len(nodeGroupIds) == 0 {
+		return "", nil
+	}
+
+	// If tasks in job are bound to different nodeGroups,
+	// an error has occurred and the scheduling should not be continued.
+	if len(nodeGroupIds) > 1 {
+		return "", fmt.Errorf("job %s bound to multiple nodegroups %v", jobInfo.UID, nodeGroupIds)
+	}
+
+	var nodeGroupId string
+	for id := range nodeGroupIds {
+		nodeGroupId = id
+	}
+	return nodeGroupId, nil
 }

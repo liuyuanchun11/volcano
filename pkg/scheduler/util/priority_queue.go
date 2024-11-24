@@ -92,3 +92,17 @@ func (pq *priorityQueue) Pop() interface{} {
 	(*pq).items = old[0 : n-1]
 	return item
 }
+
+func (q *PriorityQueue) Clone() *PriorityQueue {
+	newPq := &PriorityQueue{
+		queue: priorityQueue{
+			items:  make([]interface{}, 0),
+			lessFn: q.queue.lessFn,
+		},
+	}
+
+	for _, it := range q.queue.items {
+		newPq.Push(it)
+	}
+	return newPq
+}
