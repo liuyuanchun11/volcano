@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 
 	schedulingv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	"volcano.sh/volcano/cmd/scheduler/app/options"
@@ -188,6 +189,7 @@ func TestProportion(t *testing.T) {
 			}
 		}()
 		schedulerCache := cache.NewCustomMockSchedulerCache("mock-test", binder, nil, &util.FakeStatusUpdater{}, nil, &util.FakeVolumeBinder{}, recorder)
+		schedulerCache.DeletedJobGroups = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 		for _, node := range test.nodes {
 			schedulerCache.AddOrUpdateNode(node)
