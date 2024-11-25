@@ -155,6 +155,16 @@ func (ssn *Session) AddJobStarvingFns(name string, fn api.ValidateFn) {
 	ssn.jobStarvingFns[name] = fn
 }
 
+// AddJobGroupReadyFn add JobGroup ready function
+func (ssn *Session) AddJobGroupReadyFn(name string, fn api.ValidateFn) {
+	ssn.jobGroupReadyFns[name] = fn
+}
+
+// AddNodeGroupOrderFn add nodeGroup order function
+func (ssn *Session) AddNodeGroupOrderFn(name string, fn api.NodeGroupOrderFn) {
+	ssn.nodeGroupOrderFns[name] = fn
+}
+
 // Reclaimable invoke reclaimable function of the plugins
 func (ssn *Session) Reclaimable(reclaimer *api.TaskInfo, reclaimees []*api.TaskInfo) []*api.TaskInfo {
 	var victims []*api.TaskInfo
@@ -832,4 +842,42 @@ func (ssn *Session) BuildVictimsPriorityQueue(victims []*api.TaskInfo, preemptor
 		victimsQueue.Push(victim)
 	}
 	return victimsQueue
+}
+
+func (ssn *Session) JobGroupReady(obj interface{}) bool {
+	for _, tier := range ssn.Tiers {
+		for _, plugin := range tier.Plugins {
+			jrf, found := ssn.jobGroupReadyFns[plugin.Name]
+			if !found {
+				continue
+			}
+
+			if !jrf(obj) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// NodeGroupOrder return value is defined as map[plugin name]map[nodeGroupId]score
+func (ssn *Session) NodeGroupOrder(jobGroup *api.JobGroupInfo, jobInfo *api.JobInfo,
+	predicateNodeGroup map[string][]*api.NodeInfo) (map[string]map[string]float64, error) {
+	nodeGroupScores := make(map[string]map[string]float64)
+	for _, tier := range ssn.Tiers {
+		for _, plugin := range tier.Plugins {
+			pfn, found := ssn.nodeGroupOrderFns[plugin.Name]
+			if !found {
+				continue
+			}
+			scoreTmp, err := pfn(jobGroup, jobInfo, predicateNodeGroup)
+			if err != nil {
+				return nodeGroupScores, err
+			}
+
+			nodeGroupScores[plugin.Name] = scoreTmp
+		}
+	}
+	return nodeGroupScores, nil
 }

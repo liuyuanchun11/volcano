@@ -115,6 +115,7 @@ func TestPickUpPendingTasks(t *testing.T) {
 		schedulerCache := &cache.SchedulerCache{
 			Nodes:           make(map[string]*api.NodeInfo),
 			Jobs:            make(map[api.JobID]*api.JobInfo),
+			JobGroups:       make(map[api.JobGroupID]*api.JobGroupInfo),
 			Queues:          make(map[api.QueueID]*api.QueueInfo),
 			Binder:          nil,
 			StatusUpdater:   &util.FakeStatusUpdater{},
