@@ -42,8 +42,8 @@ func (hjr *HyperJobReconciler) pluginOnJobCreate(hyperJob *vcbatch.HyperJob, job
 		klog.V(4).Infof("Starting to execute plugin at <pluginOnJobCreate>: %s on hyperJob: <%s/%s>",
 			name, hyperJob.Namespace, hyperJob.Name)
 		if err := pb(client, args).OnJobCreate(job, hyperJob); err != nil {
-			klog.Errorf("Failed to process on job` create plugin %s, err %v.", name, err)
-			return err
+			klog.Errorf("Failed to process on job create plugin %s, err: %v", name, err)
+			return fmt.Errorf("failed to process on job create plugin %s, err: %v", name, err)
 		}
 	}
 	return nil
@@ -64,8 +64,8 @@ func (hjr *HyperJobReconciler) pluginOnHyperJobAdd(hyperJob *vcbatch.HyperJob) e
 		klog.V(4).Infof("Starting to execute plugin at <pluginOnHyperJobAdd>: %s on hyperJob: <%s/%s>",
 			name, hyperJob.Namespace, hyperJob.Name)
 		if err := pb(client, args).OnHyperJobAdd(hyperJob); err != nil {
-			klog.Errorf("Failed to process on hyperJob add plugin %s, err %v.", name, err)
-			return err
+			klog.Errorf("Failed to process on hyperJob add plugin %s, err: %v", name, err)
+			return fmt.Errorf("failed to process on hyperJob add plugin %s, err: %v", name, err)
 		}
 	}
 
@@ -87,8 +87,8 @@ func (hjr *HyperJobReconciler) pluginOnHyperJobDelete(hyperJob *vcbatch.HyperJob
 		klog.V(4).Infof("Starting to execute plugin at <pluginOnHyperJobDelete>: %s on hyperJob: <%s/%s>",
 			name, hyperJob.Namespace, hyperJob.Name)
 		if err := pb(client, args).OnHyperJobDelete(hyperJob); err != nil {
-			klog.Errorf("Failed to process on hyperJob delete plugin %s, err %v.", name, err)
-			return err
+			klog.Errorf("Failed to process on hyperJob delete plugin %s, err: %v", name, err)
+			return fmt.Errorf("failed to process on hyperJob delete plugin %s, err: %v", name, err)
 		}
 	}
 
