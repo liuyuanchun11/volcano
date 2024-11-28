@@ -169,7 +169,7 @@ func (hjr *HyperJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	if err := hjr.syncVcJobs(ctx, &hyperJob, ownedJobs, vcJobsStatus); err != nil {
+	if err := hjr.syncVcJobs(ctx, &hyperJob, ownedJobs); err != nil {
 		klog.Errorf("Create vcjobs failed: %v", err)
 		return ctrl.Result{}, err
 	}
@@ -283,49 +283,84 @@ func (hjr *HyperJobReconciler) cleanupHyperJob(hyperJob *vcbatch.HyperJob) error
 	return nil
 }
 
-func (hjr *HyperJobReconciler) syncVcJobs(ctx context.Context, hyperJob *vcbatch.HyperJob,
-	ownedJobs *vcJobs, vcJobsStatus []vcbatch.ReplicatedJobStatus) error {
+func (hjr *HyperJobReconciler) syncVcJobs(ctx context.Context, hyperJob *vcbatch.HyperJob, ownedJobs *vcJobs) error {
 	klog.V(5).Infof("Start syncing jobs")
 	defer klog.V(5).Infof("Sync jobs is complete")
 
-	var lock sync.Mutex
-	var finalErrs []error
+	var allErrs error
+	jobs := generateExistJobs(ownedJobs)
+
+	toCreateJobs := make([]*vcbatch.Job, 0)
+	toDeleteJobs := make([]*vcbatch.Job, 0)
+
 	for _, replicateJobs := range hyperJob.Spec.ReplicatedJobs {
-		jobs, err := hjr.checkNeedCreateVcJobs(hyperJob, &replicateJobs, ownedJobs)
-		if err != nil {
-			return err
-		}
-		status := hjr.getReplicatedJobStatus(vcJobsStatus, replicateJobs.Name)
-		if replicateJobs.Replicas == status.Failed+status.Ready+status.Succeeded {
-			continue
-		}
+		for jobIdx := 0; jobIdx < int(replicateJobs.Replicas); jobIdx++ {
+			jobName := GetJobName(hyperJob.Name, replicateJobs.Name, jobIdx)
+			_, found := jobs[jobName]
+			if !found {
+				newJob := constructJob(hyperJob, &replicateJobs, jobIdx)
+				err := hjr.pluginOnJobCreate(hyperJob, newJob)
+				if err != nil {
+					allErrs = errors.Join(allErrs, err)
+					continue
+				}
 
-		workqueue.ParallelizeUntil(ctx, MaxParallelism, len(jobs), func(i int) {
-			job := jobs[i]
-
-			klog.V(4).Infof("Creating job %s", job.Name)
-			if err := ctrl.SetControllerReference(hyperJob, job, hjr.Scheme); err != nil {
-				lock.Lock()
-				defer lock.Unlock()
-				finalErrs = append(finalErrs, err)
-				return
+				toCreateJobs = append(toCreateJobs, newJob)
+			} else {
+				// Remove the jobs that match the replicateJobs from map[string]*vcbatch.Job.
+				delete(jobs, jobName)
 			}
-
-			if err := hjr.Create(ctx, job); client.IgnoreAlreadyExists(err) != nil {
-				lock.Lock()
-				defer lock.Unlock()
-				klog.V(2).Infof("Failed to create job %s, err: %v", job.Name, err)
-				finalErrs = append(finalErrs, fmt.Errorf("job %s creation failed, err: %v", job.Name, err))
-				return
-			}
-			klog.V(2).Infof("Successfully created job %s", job.Name)
-		})
+		}
 	}
+
+	// Delete the jobs that don`t match the replicateJobs due to scale-in.
+	for _, job := range jobs {
+		toDeleteJobs = append(toDeleteJobs, job)
+	}
+
+	if len(toCreateJobs) != 0 {
+		createErrs := hjr.createVcJobs(ctx, hyperJob, toCreateJobs)
+		allErrs = errors.Join(allErrs, createErrs)
+	}
+
+	if len(toDeleteJobs) != 0 {
+		deleteErrs := hjr.deleteVcJobs(ctx, toDeleteJobs)
+		allErrs = errors.Join(allErrs, deleteErrs)
+	}
+
+	return allErrs
+}
+
+func (hjr *HyperJobReconciler) createVcJobs(ctx context.Context, hyperJob *vcbatch.HyperJob, jobCreate []*vcbatch.Job) error {
+	lock := &sync.Mutex{}
+	var finalErrs []error
+
+	workqueue.ParallelizeUntil(ctx, MaxParallelism, len(jobCreate), func(i int) {
+		job := jobCreate[i]
+
+		klog.V(4).Infof("Creating job %s", job.Name)
+		if err := ctrl.SetControllerReference(hyperJob, job, hjr.Scheme); err != nil {
+			lock.Lock()
+			defer lock.Unlock()
+			finalErrs = append(finalErrs, err)
+			return
+		}
+
+		if err := hjr.Create(ctx, job); client.IgnoreAlreadyExists(err) != nil {
+			lock.Lock()
+			defer lock.Unlock()
+			klog.V(2).Infof("Failed to create job %s, err: %v", job.Name, err)
+			finalErrs = append(finalErrs, fmt.Errorf("job %s creation failed, err: %v", job.Name, err))
+			return
+		}
+		klog.V(2).Infof("Successfully created job %s", job.Name)
+	})
+
 	allErrs := errors.Join(finalErrs...)
 	if allErrs != nil {
 		hjr.Record.Eventf(hyperJob, corev1.EventTypeWarning, JobCreationFailedReason, allErrs.Error())
-		return allErrs
 	}
+
 	return allErrs
 }
 
@@ -442,93 +477,6 @@ func (hjr *HyperJobReconciler) updateVcJobsStatus(ctx context.Context, hyperJob 
 	return hjr.Status().Update(ctx, hyperJob)
 }
 
-func (hjr *HyperJobReconciler) checkNeedCreateVcJobs(hyperJob *vcbatch.HyperJob, rjob *vcbatch.ReplicatedJob, ownedJobs *vcJobs) ([]*vcbatch.Job, error) {
-	var jobs []*vcbatch.Job
-	for jobIdx := 0; jobIdx < int(rjob.Replicas); jobIdx++ {
-		jobName := GetJobName(hyperJob.Name, rjob.Name, jobIdx)
-		if create := hjr.shouldCreateJob(jobName, ownedJobs); !create {
-			continue
-		}
-		job, err := hjr.constructJob(hyperJob, rjob, jobIdx)
-		if err != nil {
-			return nil, err
-		}
-		err = hjr.pluginOnJobCreate(hyperJob, job)
-		if err != nil {
-			return nil, err
-		}
-		jobs = append(jobs, job)
-	}
-	return jobs, nil
-}
-
-func (hjr *HyperJobReconciler) shouldCreateJob(jobName string, ownedJobs *vcJobs) bool {
-	for _, job := range Concat(ownedJobs.active, ownedJobs.succeeded, ownedJobs.failed, ownedJobs.pending, ownedJobs.delete) {
-		if jobName == job.Name {
-			return false
-		}
-	}
-	return true
-}
-
-func (hjr *HyperJobReconciler) constructJob(hyperJob *vcbatch.HyperJob, rjob *vcbatch.ReplicatedJob, jobIdx int) (*vcbatch.Job, error) {
-	job := &vcbatch.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels:      CloneMap(hyperJob.Labels),
-			Annotations: CloneMap(hyperJob.Annotations),
-			Name:        GetJobName(hyperJob.Name, rjob.Name, jobIdx),
-			Namespace:   hyperJob.Namespace,
-		},
-		Spec: *rjob.Template.DeepCopy(),
-	}
-
-	hjr.labelAndAnnotateObject(job, hyperJob, rjob, jobIdx)
-	hjr.inheritPlugins(job, hyperJob)
-
-	return job, nil
-}
-
-func (hjr *HyperJobReconciler) labelAndAnnotateObject(obj metav1.Object, hyperJob *vcbatch.HyperJob, rjob *vcbatch.ReplicatedJob, jobIdx int) {
-	labels := CloneMap(obj.GetLabels())
-	labels[vcbatch.HyperJobNameKey] = hyperJob.Name
-	labels[vcbatch.HyperJobNamespaceKey] = hyperJob.Namespace
-	labels[vcbatch.HyperJobReplicatedJobNameKey] = rjob.Name
-	labels[vcbatch.HyperJobReplicatedJobIndexKey] = strconv.Itoa(jobIdx)
-
-	annotations := CloneMap(obj.GetAnnotations())
-	annotations[vcbatch.HyperJobNameKey] = hyperJob.Name
-	annotations[vcbatch.HyperJobNamespaceKey] = hyperJob.Namespace
-	annotations[vcbatch.HyperJobReplicatedJobNameKey] = rjob.Name
-	annotations[vcbatch.HyperJobReplicatedJobIndexKey] = strconv.Itoa(jobIdx)
-	annotations[vcbatch.HyperJobUIDKey] = string(hyperJob.UID)
-
-	// all pods in job which created by hyperjob must be scheduled to the same hypernode
-	annotations[vcbatch.HyperNodeAffinityAnnotation] = vcbatch.Required
-
-	obj.SetLabels(labels)
-	obj.SetAnnotations(annotations)
-}
-
-func (hjr *HyperJobReconciler) inheritPlugins(job *vcbatch.Job, hyperJob *vcbatch.HyperJob) {
-	if job.Spec.Plugins == nil {
-		job.Spec.Plugins = make(map[string][]string)
-	}
-	for k, v := range hyperJob.Spec.Plugins {
-		if _, exist := job.Spec.Plugins[k]; !exist {
-			job.Spec.Plugins[k] = v
-		}
-	}
-}
-
-func (hjr *HyperJobReconciler) getReplicatedJobStatus(replicatedJobStatus []vcbatch.ReplicatedJobStatus, replicatedJobName string) vcbatch.ReplicatedJobStatus {
-	for _, status := range replicatedJobStatus {
-		if status.Name == replicatedJobName {
-			return status
-		}
-	}
-	return vcbatch.ReplicatedJobStatus{}
-}
-
 func (hjr *HyperJobReconciler) getFirstFailedJob(failedJobs []*vcbatch.Job) *vcbatch.Job {
 	var (
 		firstFailedJob   *vcbatch.Job
@@ -632,4 +580,61 @@ func (hjr *HyperJobReconciler) cleanupUnfinishedJobs(ctx context.Context, jobs *
 	jobsDelete = append(jobsDelete, jobs.active...)
 	jobsDelete = append(jobsDelete, jobs.pending...)
 	return hjr.deleteVcJobs(ctx, jobsDelete)
+}
+
+func generateExistJobs(ownedJobs *vcJobs) map[string]*vcbatch.Job {
+	existJobs := make(map[string]*vcbatch.Job)
+	for _, job := range Concat(ownedJobs.active, ownedJobs.succeeded, ownedJobs.failed, ownedJobs.pending, ownedJobs.delete) {
+		existJobs[job.Name] = job
+	}
+	return existJobs
+}
+
+func constructJob(hyperJob *vcbatch.HyperJob, rjob *vcbatch.ReplicatedJob, jobIdx int) *vcbatch.Job {
+	job := &vcbatch.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      CloneMap(hyperJob.Labels),
+			Annotations: CloneMap(hyperJob.Annotations),
+			Name:        GetJobName(hyperJob.Name, rjob.Name, jobIdx),
+			Namespace:   hyperJob.Namespace,
+		},
+		Spec: *rjob.Template.DeepCopy(),
+	}
+
+	labelAndAnnotateObject(job, hyperJob, rjob, jobIdx)
+	inheritPlugins(job, hyperJob)
+
+	return job
+}
+
+func labelAndAnnotateObject(obj metav1.Object, hyperJob *vcbatch.HyperJob, rjob *vcbatch.ReplicatedJob, jobIdx int) {
+	labels := CloneMap(obj.GetLabels())
+	labels[vcbatch.HyperJobNameKey] = hyperJob.Name
+	labels[vcbatch.HyperJobNamespaceKey] = hyperJob.Namespace
+	labels[vcbatch.HyperJobReplicatedJobNameKey] = rjob.Name
+	labels[vcbatch.HyperJobReplicatedJobIndexKey] = strconv.Itoa(jobIdx)
+
+	annotations := CloneMap(obj.GetAnnotations())
+	annotations[vcbatch.HyperJobNameKey] = hyperJob.Name
+	annotations[vcbatch.HyperJobNamespaceKey] = hyperJob.Namespace
+	annotations[vcbatch.HyperJobReplicatedJobNameKey] = rjob.Name
+	annotations[vcbatch.HyperJobReplicatedJobIndexKey] = strconv.Itoa(jobIdx)
+	annotations[vcbatch.HyperJobUIDKey] = string(hyperJob.UID)
+
+	// all pods in job which created by hyperjob must be scheduled to the same hypernode
+	annotations[vcbatch.HyperNodeAffinityAnnotation] = vcbatch.Required
+
+	obj.SetLabels(labels)
+	obj.SetAnnotations(annotations)
+}
+
+func inheritPlugins(job *vcbatch.Job, hyperJob *vcbatch.HyperJob) {
+	if job.Spec.Plugins == nil {
+		job.Spec.Plugins = make(map[string][]string)
+	}
+	for k, v := range hyperJob.Spec.Plugins {
+		if _, exist := job.Spec.Plugins[k]; !exist {
+			job.Spec.Plugins[k] = v
+		}
+	}
 }
