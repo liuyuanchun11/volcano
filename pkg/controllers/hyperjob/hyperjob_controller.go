@@ -391,7 +391,8 @@ func (hjr *HyperJobReconciler) executeFailurePolicy(ctx context.Context, hyperJo
 	// HyperJob will set failed for any job state is failed
 	firstFailedJob := hjr.getFirstFailedJob(ownedJobs.failed)
 	if firstFailedJob == nil {
-		return fmt.Errorf("failed to get first failed job")
+		klog.V(4).Infof("Failed to get first failed job")
+		return hjr.setHyperJobFail(ctx, hyperJob, FailedJobsReason, FailedJobsMessage)
 	}
 	message := fmt.Sprintf("%s, first failed job: %s", FailedJobsMessage, firstFailedJob.Name)
 	return hjr.setHyperJobFail(ctx, hyperJob, FailedJobsReason, message)
