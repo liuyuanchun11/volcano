@@ -4306,7 +4306,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.17.0
   name: jobs.batch.volcano.sh
 spec:
   group: batch.volcano.sh
@@ -7120,6 +7120,39 @@ spec:
                               x-kubernetes-list-map-keys:
                               - name
                               x-kubernetes-list-type: map
+                            resources:
+                              properties:
+                                claims:
+                                  items:
+                                    properties:
+                                      name:
+                                        type: string
+                                      request:
+                                        type: string
+                                    required:
+                                    - name
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-map-keys:
+                                  - name
+                                  x-kubernetes-list-type: map
+                                limits:
+                                  additionalProperties:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                    x-kubernetes-int-or-string: true
+                                  type: object
+                                requests:
+                                  additionalProperties:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                    x-kubernetes-int-or-string: true
+                                  type: object
+                              type: object
                             restartPolicy:
                               type: string
                             runtimeClassName:
@@ -7162,6 +7195,8 @@ spec:
                                 runAsUser:
                                   format: int64
                                   type: integer
+                                seLinuxChangePolicy:
+                                  type: string
                                 seLinuxOptions:
                                   properties:
                                     level:
@@ -8301,7 +8336,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.17.0
   name: commands.bus.volcano.sh
 spec:
   group: bus.volcano.sh
@@ -8746,7 +8781,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.17.0
   name: podgroups.scheduling.volcano.sh
 spec:
   group: scheduling.volcano.sh
@@ -8908,7 +8943,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.17.0
   name: queues.scheduling.volcano.sh
 spec:
   group: scheduling.volcano.sh
@@ -8922,7 +8957,11 @@ spec:
     singular: queue
   scope: Cluster
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.parent
+      name: PARENT
+      type: string
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: Queue is a queue of PodGroup.
@@ -9126,7 +9165,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.17.0
   name: numatopologies.nodeinfo.volcano.sh
 spec:
   group: nodeinfo.volcano.sh
@@ -9569,7 +9608,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.17.0
   name: jobtemplates.flow.volcano.sh
 spec:
   group: flow.volcano.sh
@@ -12365,6 +12404,39 @@ spec:
                               x-kubernetes-list-map-keys:
                               - name
                               x-kubernetes-list-type: map
+                            resources:
+                              properties:
+                                claims:
+                                  items:
+                                    properties:
+                                      name:
+                                        type: string
+                                      request:
+                                        type: string
+                                    required:
+                                    - name
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-map-keys:
+                                  - name
+                                  x-kubernetes-list-type: map
+                                limits:
+                                  additionalProperties:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                    x-kubernetes-int-or-string: true
+                                  type: object
+                                requests:
+                                  additionalProperties:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                    x-kubernetes-int-or-string: true
+                                  type: object
+                              type: object
                             restartPolicy:
                               type: string
                             runtimeClassName:
@@ -12407,6 +12479,8 @@ spec:
                                 runAsUser:
                                   format: int64
                                   type: integer
+                                seLinuxChangePolicy:
+                                  type: string
                                 seLinuxOptions:
                                   properties:
                                     level:
@@ -13483,7 +13557,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.17.0
   name: jobflows.flow.volcano.sh
 spec:
   group: flow.volcano.sh
