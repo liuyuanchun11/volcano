@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	batchv1 "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
@@ -71,6 +72,9 @@ func (hjc *hyperJobController) Initialize(opt *framework.ControllerOption) error
 	mgr, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 	})
 	if err != nil {
 		klog.Errorf("Failed to create hyperJob controller err: %v", err)
