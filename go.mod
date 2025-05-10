@@ -63,6 +63,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.53.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	k8s.io/cri-api v0.32.2 // indirect
 	k8s.io/cri-client v0.0.0 // indirect
 	k8s.io/dynamic-resource-allocation v0.0.0 // indirect
@@ -194,5 +195,5 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.32.2
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.32.2
 	k8s.io/sample-controller => k8s.io/sample-controller v0.32.2
-	volcano.sh/apis => github.com/liuyuanchun11/apis v1.8.0-alpha.0.0.20250320065305-27b47bc1d326
+	volcano.sh/apis => github.com/liuyuanchun11/apis v1.8.0-alpha.0.0.20250510081124-e05f400bf30f
 )
